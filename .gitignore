@@ -1,0 +1,15 @@
+.idea/*
+.vs/*
+out/*
+_VSBuild/*
+_Build/*
+SavSyncerTools/.vs/*
+SavSyncerTools/out/*
+
+./.idea/*
+./.vs/*
+./out/*
+./_VSBuild/*
+./_Build/*
+./SavSyncerTools/.vs/*
+./SavSyncerTools/out/*

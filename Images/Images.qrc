@@ -1,0 +1,16 @@
+<RCC>
+    <qresource prefix="/">
+        <file>close.png</file>
+        <file>collapse.png</file>
+        <file>fullScreen.png</file>
+        <file>windowScreen.png</file>
+        <file>search.png</file>
+        <file>logo.png</file>
+        <file>syncCompleted.png</file>
+        <file>syncFailed.png</file>
+        <file>syncProcess.png</file>
+        <file>checkBoxChecked.png</file>
+        <file>logo.ico</file>
+        <file>bin.png</file>
+    </qresource>
+</RCC>
