@@ -2,6 +2,7 @@
 #include <QtWidgets/QApplication>
 #include <csignal>
 #include <dbghelp.h>
+#include <QSharedMemory>
 
 // global vars
 QThread* anotherThread = new QThread();
@@ -80,6 +81,7 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
 // main
 int main(int argc, char *argv[])
 {
+
     // app flags
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
@@ -103,6 +105,14 @@ int main(int argc, char *argv[])
     // app
     QApplication a(argc, argv);
     a.setWindowIcon(QIcon(QPixmap(":/logo.png")));
+
+    // program duplication blocking
+    QSharedMemory sharedMemory("SavSyncer");
+    if (sharedMemory.attach()) {
+        QMessageBox::critical(nullptr, "Ошибка", "Программа уже запущена!");
+        return 0;
+    }
+    sharedMemory.create(1);
 
     // logs
     objectAnotherThread->moveToThread(anotherThread);

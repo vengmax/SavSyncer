@@ -1100,6 +1100,12 @@ void SavSyncer::closeEvent(QCloseEvent* event) {
     }
     else {
         hide();
+        if (about)
+            about->close();
+        if (profile)
+            profile->close();
+        if (settings)
+            settings->close();
         QMainWindow::closeEvent(event);
     }
 }

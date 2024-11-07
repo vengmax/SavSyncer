@@ -12,7 +12,7 @@ QByteArray serializeFolder(const QString& folderPath) {
         QString filePath = dir.absoluteFilePath(fileName);
         if (QFileInfo(filePath).isFile()) {
             QJsonObject fileObject;
-            fileObject["size"] = QFileInfo(filePath).size(); // Добавьте другие метаданные
+            fileObject["size"] = QFileInfo(filePath).size();
             QFile file(filePath);
             QByteArray fileData;
             if (file.open(QIODevice::ReadOnly)) {

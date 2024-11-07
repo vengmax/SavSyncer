@@ -81,6 +81,7 @@ Settings::Settings(QSettings* regset, QWidget *parent)
     if (startupMinimized) {
         ui.checkBoxBackgroundWork->setDisabled(true);
         ui.checkBoxBackgroundWork->setChecked(true);
+        backgroundWork = true;
     }
     else
         ui.checkBoxBackgroundWork->setChecked(backgroundWork);
