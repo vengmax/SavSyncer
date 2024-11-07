@@ -18,6 +18,11 @@ SavSyncer::SavSyncer(QWidget *parent)
     profile = new Profile(regSettings);
     settings = new Settings(regSettings);
 
+    about->setVersion(version);
+    about->setBuildDate(buildDate);
+    about->setVersionAPI(versionAPI);
+    about->setContact(contact);
+
     // tray
     trayIcon = new QSystemTrayIcon(this);
     trayIcon->setIcon(QIcon(":/logo.png"));
@@ -180,7 +185,15 @@ void SavSyncer::handlerSuccessfulSignIn() {
 
     // load service file .ss
     QJsonDocument documentJSON;
-    if (profile->checkFileExistence(".ss")) {
+    bool fileExistence = profile->checkFileExistence("", ".ss");
+    if (profile->error()) {
+        CRITICAL_MSG("Failed to read user data correctly");
+        QMessageBox::critical(nullptr, "Ошибка авторизации", "Не удалось корректно прочиать данные о пользователе! Пожалуйста перезайдите в акаунт.");
+        handlerSignOut();
+        emit deleteWaitingGame();
+        return;
+    }
+    if (fileExistence) {
         QByteArray jsonData = profile->downloadGameData(".ss");
         if (profile->error()) {
             CRITICAL_MSG("Download service file \".ss\" failed");
@@ -393,7 +406,6 @@ Game* SavSyncer::addNewGame() {
                 }
             }
         }
-        game->setSyncMode(SyncMode::SyncDeleteProcess);
         deleteGame(game);
         });
 
@@ -443,15 +455,14 @@ void SavSyncer::clickedAddGame() {
 }
 
 QByteArray SavSyncer::serializeFolder(const QString& folderPath) {
-    INFO_MSG("Packing data for synchronization");
-
     QJsonObject folderObject;
     QDir dir(folderPath);
     foreach(const QString & fileName, dir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
         QString filePath = dir.absoluteFilePath(fileName);
         if (QFileInfo(filePath).isFile()) {
             QJsonObject fileObject;
-            fileObject["size"] = QFileInfo(filePath).size(); // Добавьте другие метаданные
+            fileObject["size"] = QFileInfo(filePath).size();
+            fileObject["modified"] = QFileInfo(filePath).lastModified().toString("yyyy_MM_dd_hh-mm-ss-zzz");
             QFile file(filePath);
             QByteArray fileData;
             if (file.open(QIODevice::ReadOnly)) {
@@ -470,13 +481,49 @@ QByteArray SavSyncer::serializeFolder(const QString& folderPath) {
     return document.toJson();
 }
 
-void SavSyncer::deserializeFolder(const QByteArray& jsonData, const QString& targetPath) {
-    INFO_MSG("Unpacking data for synchronization");
+bool SavSyncer::setLastModifiedTime(const QString& filePath, const QDateTime& newTime) {
+    HANDLE hFile = CreateFileA(
+        filePath.toStdString().c_str(),
+        GENERIC_WRITE,
+        FILE_SHARE_WRITE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+
+    if (hFile == INVALID_HANDLE_VALUE) {
+        CRITICAL_MSG("Failed to open file");
+        CloseHandle(hFile);
+        return false;
+    }
+
+    ULARGE_INTEGER ull;
+    ull.QuadPart = newTime.toMSecsSinceEpoch() * 10000 + 116444736000000000;
+
+    FILETIME ft;
+    ft.dwLowDateTime = ull.LowPart;
+    ft.dwHighDateTime = ull.HighPart;
+
+    // Установка времени последнего изменения
+    if (!SetFileTime(hFile, NULL, NULL, &ft)) {
+        CRITICAL_MSG("Failed to file set last modified date");
+        CloseHandle(hFile);
+        return false;
+    }
+
+    CloseHandle(hFile);
+    return true;
+}
+
+void SavSyncer::deserializeFolder(const QByteArray& jsonData, const QString& targetPath, bool& ok) {
+    ok = true;
 
     QJsonDocument documentJSON = QJsonDocument::fromJson(jsonData);
     QJsonObject objectJSON = documentJSON.object();
     if (documentJSON.isNull() || !documentJSON.isObject()) {
         CRITICAL_MSG("Data is not a JSON file");
+        ok = false;
         return;
     }
 
@@ -484,44 +531,58 @@ void SavSyncer::deserializeFolder(const QByteArray& jsonData, const QString& tar
     targetDir.mkpath(targetPath);
     if (!targetDir.exists()) {
         CRITICAL_MSG("Failed to create folder");
+        ok = false;
         return;
     }
 
     for (QString &key: objectJSON.keys()){
         if (key.startsWith("folder:")) {
             QByteArray data = QJsonDocument(objectJSON.value(key).toObject()).toJson();
-            deserializeFolder(data, targetPath + "/" + key.remove("folder:"));
+            deserializeFolder(data, targetPath + "/" + key.remove("folder:"), ok);
+            if (!ok)
+                return;
         }
         else if (key.startsWith("file:")) {
             QJsonObject fileObject = objectJSON.value(key).toObject();
-            if (fileObject.contains("data") && fileObject.contains("size")) {
+            if (fileObject.contains("data") && fileObject.contains("size") && fileObject.contains("modified")) {
 
                 QByteArray base64Data = fileObject["data"].toString().toUtf8();
+                QDateTime dateModified = QDateTime::fromString(fileObject["modified"].toString(), "yyyy_MM_dd_hh-mm-ss-zzz");
                 QByteArray data = QByteArray::fromBase64(base64Data);
 
                 QFile file(targetPath + "/" + key.remove("file:"));
                 if (file.open(QIODevice::WriteOnly)) {
                     file.write(data);
                     file.close();
+                    setLastModifiedTime(file.fileName(), dateModified);
                 }
                 else {
                     CRITICAL_MSG("Cannot open file for writing");
+                    ok = false;
                     return;
                 }
             }
             else {
-                CRITICAL_MSG("Data is not a JSON file");
+                CRITICAL_MSG("Data is not a correct JSON file");
+                ok = false;
                 return;
             }
         }
         else {
             CRITICAL_MSG("Data is not a JSON file");
+            ok = false;
             return;
         }
     }
 }
 
-void SavSyncer::syncGame(Game *game) {
+void SavSyncer::syncGame(Game* game) {
+
+    if (!profile->isOnline()) {
+        WARNING_MSG("User is not authorized");
+        QMessageBox::warning(nullptr, "Предупреждение", "Необходимо войти в учетную запись.");
+        return;
+    }
 
     if (game->isBusy()) {
         CRITICAL_MSG("Unable to sync " + game->name() + "! The game is currently busy");
@@ -547,7 +608,7 @@ void SavSyncer::syncGame(Game *game) {
         // if another game is syncing, then put in queue
         if (!listSyncGame.isEmpty()) {
             if (listSyncGame.first() != game) {
-                if(!listSyncGame.contains(game))
+                if (!listSyncGame.contains(game))
                     listSyncGame.append(game);
                 return;
             }
@@ -582,33 +643,30 @@ void SavSyncer::syncGame(Game *game) {
                 QJsonObject jsonGameInfo = objectJSON.value(key).toObject();
                 lastServiceGameDataModified = QDateTime::fromString(jsonGameInfo["modified"].toString(), "yyyy_MM_dd_hh-mm-ss-zzz");
                 nameGameSave = jsonGameInfo["name_gamesave"].toString();
+
+                // question before sync
+                QMessageBox msg;
+                msg.setIcon(QMessageBox::Information);
+                msg.setWindowTitle("Синхронизация данных");
+                msg.setText("Были изменены данные игры " + game->name() + ". Для продолжения выберите где находятся актуальные данные.");
+                msg.setWindowFlags(msg.windowFlags() & ~Qt::AA_DisableWindowContextHelpButton);
+                msg.setStandardButtons(QMessageBox::Yes);
+                msg.addButton(QMessageBox::No);
+                msg.addButton(QMessageBox::Cancel);
+                msg.setDefaultButton(QMessageBox::Yes);
+                QAbstractButton* yesButton = msg.button(QMessageBox::Yes);
+                yesButton->setText("На диске");
+                QAbstractButton* noButton = msg.button(QMessageBox::No);
+                noButton->setText("На компьютере");
+                noButton->setMinimumWidth(120);
+                QAbstractButton* cancelButton = msg.button(QMessageBox::Cancel);
+                cancelButton->setText("Отмена");
                 if (jsonGameInfo["name"].toString() != game->name() || jsonGameInfo["path_game"].toString() != game->filePath() ||
-                    jsonGameInfo["path_gamesave"].toString() != game->pathGameSave()) 
+                    jsonGameInfo["path_gamesave"].toString() != game->pathGameSave())
                 {
-                    QMessageBox msg;
-                    msg.setIcon(QMessageBox::Information);
-                    msg.setWindowTitle("Синхронизация данных");
-                    msg.setWindowFlags(msg.windowFlags() & ~Qt::AA_DisableWindowContextHelpButton);
-                    msg.setText("Были изменены данные игры " + game->name() + ". Для продолжения выберите где находятся актуальные данные.");
-                    msg.setStandardButtons(QMessageBox::Yes);
-                    msg.addButton(QMessageBox::No);
-                    msg.addButton(QMessageBox::Cancel);
-                    msg.setDefaultButton(QMessageBox::Yes);
-                    QAbstractButton* yesButton = msg.button(QMessageBox::Yes);
-                    yesButton->setText("На диске");
-                    QAbstractButton* noButton = msg.button(QMessageBox::No);
-                    noButton->setText("На компьютере");
-                    noButton->setMinimumWidth(120);
-                    QAbstractButton* cancelButton = msg.button(QMessageBox::Cancel);
-                    cancelButton->setText("Отмена");
+                    
                     int res = msg.exec();
-                    if (res == QMessageBox::Rejected || res == QMessageBox::Cancel) {
-                        game->setBusy(false);
-                        game->setSyncMode(SyncMode::SyncUncompleted);
-                        emit syncWaitingGame();
-                        return;
-                    }
-                    else if (res == QMessageBox::Yes)
+                    if (res == QMessageBox::Yes)
                         downloadSave = true;
                     else if (res == QMessageBox::No)
                         uploadSave = true;
@@ -617,6 +675,21 @@ void SavSyncer::syncGame(Game *game) {
                         game->setSyncMode(SyncMode::SyncUncompleted);
                         emit syncWaitingGame();
                         return;
+                    }
+                }
+                else {
+                    if (!QFileInfo(game->pathGameSave() + "/.savsyncer").exists()){
+                        int res = msg.exec();
+                        if (res == QMessageBox::Yes)
+                            downloadSave = true;
+                        else if (res == QMessageBox::No)
+                            uploadSave = true;
+                        else {
+                            game->setBusy(false);
+                            game->setSyncMode(SyncMode::SyncUncompleted);
+                            emit syncWaitingGame();
+                            return;
+                        }
                     }
                 }
                 break;
@@ -629,6 +702,25 @@ void SavSyncer::syncGame(Game *game) {
         QString path = game->pathGameSave();
         if (lastLocalGameDataModified != lastServiceGameDataModified || uploadSave || downloadSave) {
             if ((lastServiceGameDataModified < lastLocalGameDataModified || uploadSave) && !downloadSave) {
+
+                // create local .savsyncer
+                QFile file(game->pathGameSave() + "/.savsyncer");
+                if (file.open(QIODevice::WriteOnly)) {
+                    QString output = "---SavSyncer---\r\nVersion: " + version + "\r\nBuild date: " 
+                        + buildDate + "\r\nVersion API: " + versionAPI + "\r\nContact: " + contact;
+                    file.write(output.toUtf8());
+                    file.close();
+                    setLastModifiedTime(file.fileName(), lastLocalGameDataModified);
+                }
+                else {
+                    game->setBusy(false);
+                    game->setSyncMode(SyncMode::SyncFailed);
+                    CRITICAL_MSG(game->name() + ": Create local file \".savsyncer\" failed");
+                    if (!isVisible())
+                        trayIcon->showMessage("Ошибка синхронизации", "Произошла ошибка при синхронизации " + game->name(), QSystemTrayIcon::Warning);
+                    emit syncWaitingGame();
+                    return;
+                }
 
                 // create .ss
                 QJsonObject jsonObjectGameData;
@@ -651,16 +743,23 @@ void SavSyncer::syncGame(Game *game) {
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG(game->name() + ": Upload service file \".ss\" failed");
+                    if(!isVisible())
+                        trayIcon->showMessage("Ошибка синхронизации", "Произошла ошибка при синхронизации " + game->name(), QSystemTrayIcon::Warning);
                     emit syncWaitingGame();
                     return;
                 }
 
                 // upload game save
                 auto funcCompress = [this, path, &data, &eveloop, game]() {
-                    INFO_MSG("Start serialize and compress data " + game->name());
+
+                    INFO_MSG("Start serialize data " + game->name());
                     data = serializeFolder(path);
+                    INFO_MSG("Finished serialize data " + game->name());
+
+                    INFO_MSG("Start compress data " + game->name());
                     data = qCompress(data, 4);
-                    INFO_MSG("Finished serialize and compress data " + game->name());
+                    INFO_MSG("Finished compress data " + game->name());
+
                     eveloop.quit();
                     };
                 if (QMetaObject::invokeMethod(objectAnotherThread, funcCompress, Qt::QueuedConnection))
@@ -671,6 +770,8 @@ void SavSyncer::syncGame(Game *game) {
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG("Synchronization " + game->name() + " failed");
+                    if (!isVisible())
+                        trayIcon->showMessage("Ошибка синхронизации", "Произошла ошибка при синхронизации " + game->name(), QSystemTrayIcon::Warning);
                     emit syncWaitingGame();
                     return;
                 }
@@ -686,19 +787,37 @@ void SavSyncer::syncGame(Game *game) {
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG("Synchronization " + game->name() + " failed");
+                    if (!isVisible())
+                        trayIcon->showMessage("Ошибка синхронизации", "Произошла ошибка при синхронизации " + game->name(), QSystemTrayIcon::Warning);
                     emit syncWaitingGame();
                     return;
                 }
 
-                auto funcUncompress = [this, path, &data, &eveloop, game]() {
-                    INFO_MSG("Start Uncompress and deserialize data " + game->name());
+                bool ok = true;
+                auto funcUncompress = [this, path, &data, &eveloop, game, &ok]() {
+
+                    INFO_MSG("Start uncompress data " + game->name());
                     data = qUncompress(data);
-                    deserializeFolder(data, path);
-                    INFO_MSG("Finished uncompress and deserialize data " + game->name());
+                    INFO_MSG("Finished uncompress data " + game->name());
+
+                    INFO_MSG("Start deserialize data " + game->name());
+                    deserializeFolder(data, path, ok);
+                    INFO_MSG("Finished deserialize data " + game->name());
+
                     eveloop.quit();
                     };
                 if (QMetaObject::invokeMethod(objectAnotherThread, funcUncompress, Qt::QueuedConnection))
                     eveloop.exec();
+
+                if (!ok) {
+                    game->setBusy(false);
+                    game->setSyncMode(SyncMode::SyncFailed);
+                    CRITICAL_MSG(game->name() + ": Deserialization of game data failed");
+                    if (!isVisible())
+                        trayIcon->showMessage("Ошибка синхронизации", "Произошла ошибка при синхронизации " + game->name(), QSystemTrayIcon::Warning);
+                    emit syncWaitingGame();
+                    return;
+                }
 
                 // update info game save
                 game->updateGameSaveInfo();
@@ -725,6 +844,8 @@ void SavSyncer::syncGame(Game *game) {
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG(game->name() + ": Upload service file \".ss\" failed");
+                    if (!isVisible())
+                        trayIcon->showMessage("Ошибка синхронизации", "Произошла ошибка при синхронизации " + game->name(), QSystemTrayIcon::Warning);
                     emit syncWaitingGame();
                     return;
                 }
@@ -776,7 +897,15 @@ void SavSyncer::syncAllGame() {
 }
 
 void SavSyncer::deleteGame(Game* game) {
+
+    if (!profile->isOnline()) {
+        WARNING_MSG("User is not authorized");
+        QMessageBox::warning(nullptr, "Предупреждение", "Необходимо войти в учетную запись.");
+        return;
+    }
+
     if (!game->isBusy()) {
+        game->setSyncMode(SyncMode::SyncDeleteProcess);
 
         // if another game is deleting, then put in queue
         if (!listDeleteGame.isEmpty()) {
@@ -807,7 +936,15 @@ void SavSyncer::deleteGame(Game* game) {
         if (found) {
 
             // delete save
-            if (profile->checkFileExistence(nameGameSave)) {
+            bool fileExistence = profile->checkFileExistence("", nameGameSave);
+            if (profile->error()) {
+                game->setBusy(false);
+                game->setSyncMode(SyncMode::SyncDeleteFailed);
+                CRITICAL_MSG("Could not find file \".ss\"");
+                emit deleteWaitingGame();
+                return;
+            }
+            if (fileExistence) {
                 profile->deleteGameData(nameGameSave);
                 if (profile->error()) {
                     game->setBusy(false);
@@ -843,7 +980,7 @@ void SavSyncer::deleteGame(Game* game) {
     }
     else {
         CRITICAL_MSG("Unable to delete " + game->name() + "! The game is currently busy");
-        //QMessageBox::critical(nullptr, "Ошибка", "Невозможно удалить игру! В данный момент игра занята другим процессом.");
+        QMessageBox::critical(nullptr, "Ошибка", "Невозможно удалить игру! В данный момент игра занята другим процессом.");
     }
 }
 

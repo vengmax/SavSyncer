@@ -41,7 +41,7 @@ public:
 	QString getLastName();
 	QPixmap getAvatar();
 
-	bool checkFileExistence(QString path);
+	bool checkFileExistence(QString path, QString nameFile);
 	QStringList listFiles(QString path);
 	void loadGameDataInfo(QString path);
 	QDateTime lastModifiedGameData();

@@ -101,8 +101,11 @@ void YandexService::loadUserInfo() {
 
     INFO_MSG("Loading user data");
     QByteArray response = GET(tokenOAuth, QUrl("https://login.yandex.ru/info"));
-    if (m_error)
-        return;
+    if (m_error) {
+        response = GET(tokenOAuth, QUrl("https://login.yandex.ru/info"));
+        if(m_error)
+            return;
+    }
 
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response);
     if (jsonDoc.isNull() || !jsonDoc.isObject()) {
@@ -124,8 +127,9 @@ void YandexService::loadUserInfo() {
     if (userInfo.contains("default_avatar_id")) {
         response = GET(tokenOAuth, QUrl(QString("https://avatars.yandex.net/get-yapic/%1/islands-200").arg(userInfo["default_avatar_id"].toString())));
         if (m_error) {
-            WARNING_MSG("User avatar loading failed");
-            m_error = false;
+            response = GET(tokenOAuth, QUrl(QString("https://avatars.yandex.net/get-yapic/%1/islands-200").arg(userInfo["default_avatar_id"].toString())));
+            if (m_error)
+                WARNING_MSG("User avatar loading failed");
         } 
         else {
             userAvatar.loadFromData(response, "JPEG");
@@ -139,8 +143,11 @@ void YandexService::loadUserInfo() {
     // storage space
     INFO_MSG("Load storage info");
     response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/"));
-    if (m_error)
-        return;
+    if (m_error) {
+        response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/"));
+        if (m_error)
+            return;
+    }
 
     jsonDoc = QJsonDocument::fromJson(response);
     if (jsonDoc.isNull() || !jsonDoc.isObject()) {
@@ -193,14 +200,17 @@ long long YandexService::storageUsedSpace() {
     return usedSpace;
 }
 
-bool YandexService::checkFileExistence(QString path) {
+bool YandexService::checkFileExistence(QString path, QString nameFile) {
     m_error = false;
 
-    INFO_MSG("Start check file existence (path: " + path + ")");
+    INFO_MSG("Start check file existence (path: " + path + "; name: " + nameFile + ")");
 
-    QByteArray response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources?path=app:/&fields=_embedded.items"));
-    if (m_error)
-        return false;
+    QByteArray response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources?path=app:/" + path + "&fields=_embedded.items"));
+    if (m_error) {
+        response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources?path=app:/" + path + "&fields=_embedded.items"));
+        if (m_error)
+            return false;
+    }
 
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response);
     QJsonObject jsonObj = jsonDoc.object();
@@ -214,7 +224,7 @@ bool YandexService::checkFileExistence(QString path) {
         for (const QJsonValue& item : items) {
             QJsonObject folderObj = item.toObject();
             QString fileName = folderObj["name"].toString();
-            if (fileName == path) {
+            if (fileName == nameFile) {
                 INFO_MSG("File found");
                 return true;
             }
@@ -230,8 +240,11 @@ QStringList YandexService::listFileNames(QString path) {
     INFO_MSG("Start load list file names (path: " + path + ")");
 
     QByteArray response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources?path=app:/" + path + "&fields=_embedded.items"));
-    if (m_error)
-        return QStringList();
+    if (m_error) {
+        response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources?path=app:/" + path + "&fields=_embedded.items"));
+        if (m_error)
+            return QStringList();
+    }
 
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response);
     QJsonObject jsonObj = jsonDoc.object();
@@ -259,8 +272,11 @@ void YandexService::loadFileInfo(QString path) {
     INFO_MSG("Start load file data (path: " + path + ")");
 
     QByteArray response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources?path=app:/" + path));
-    if (m_error)
-        return;
+    if (m_error) {
+        response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources?path=app:/" + path));
+        if (m_error)
+            return;
+    }
 
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response);
     if (jsonDoc.isNull() || !jsonDoc.isObject()) {
@@ -304,8 +320,11 @@ QByteArray YandexService::download(QString path) {
     INFO_MSG("Start download data (path: " + path + ")");
 
     QByteArray response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources/download?path=app:/" + path));
-    if (m_error)
-        return QByteArray();
+    if (m_error) {
+        response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources/download?path=app:/" + path));
+        if (m_error)
+            return QByteArray();
+    }
 
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response);
     if (jsonDoc.isNull() || !jsonDoc.isObject()) {
@@ -357,8 +376,11 @@ QByteArray YandexService::download(QString path) {
     }
 
     response = GET(tokenOAuth, QUrl(QString(pathDownload)));
-    if (m_error)
-        return QByteArray();
+    if (m_error) {
+        response = GET(tokenOAuth, QUrl(QString(pathDownload)));
+        if (m_error)
+            return QByteArray();
+    }
 
     if (m_httpCode != "200")
         return QByteArray();
@@ -374,8 +396,11 @@ void YandexService::upload(QString path, QByteArray data) {
     INFO_MSG("Start upload data (path: " + path + ")");
 
     QByteArray response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources/upload?path=app:/" + path + "&overwrite=true"));
-    if (m_error)
-        return;
+    if (m_error) {
+        response = GET(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources/upload?path=app:/" + path + "&overwrite=true"));
+        if (m_error)
+            return;
+    }
 
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response);
     if (jsonDoc.isNull() || !jsonDoc.isObject()) {
@@ -432,12 +457,19 @@ void YandexService::upload(QString path, QByteArray data) {
             WARNING_MSG("The file is being processed");
         else if (m_httpCode == "413")
             CRITICAL_MSG("File size is larger than allowed! Allowed size: up to 1 GB");
-        else if (m_httpCode == "500" || m_httpCode == "503")
+        else if (m_httpCode == "500" || m_httpCode == "503") {
             CRITICAL_MSG("Server error, please try downloading again");
+            PUT(tokenOAuth, QUrl(QString(pathUpload)), data);
+            if (m_httpCode != "201")
+                CRITICAL_MSG("Failed to upload data");
+        }
         else if (m_httpCode == "507")
             CRITICAL_MSG("There is not enough space on the user's Disk to download the file");
-        else
-            CRITICAL_MSG("Failed to upload data");
+        else {
+            PUT(tokenOAuth, QUrl(QString(pathUpload)), data);
+            if (m_httpCode != "201")
+                CRITICAL_MSG("Failed to upload data");
+        }
     }
     INFO_MSG("Data uploaded");
 }
@@ -448,8 +480,11 @@ void YandexService::deleteResource(QString path) {
     INFO_MSG("Start delete data (path: " + path + ")");
 
     DELETE(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources?path=app:/" + path + "&permanently=true"));
-    if (m_error)
-        return;
+    if (m_error) {
+        DELETE(tokenOAuth, QUrl("https://cloud-api.yandex.net/v1/disk/resources?path=app:/" + path + "&permanently=true"));
+        if (m_error)
+            return;
+    }
 
     INFO_MSG("Data deleted");
 }

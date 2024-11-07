@@ -124,9 +124,9 @@ QPixmap Profile::getAvatar() {
 	return QString();
 }
 
-bool Profile::checkFileExistence(QString path) {
+bool Profile::checkFileExistence(QString path, QString nameFile) {
 	if (lastAuthService)
-		return lastAuthService->checkFileExistence(path);
+		return lastAuthService->checkFileExistence(path, nameFile);
 	return false;
 }
 
@@ -239,7 +239,10 @@ void Profile::showProfile(Status status) {
 		ui.frameStorage->setVisible(true);
 		ui.btnSignOut->setVisible(true);
 		if (lastAuthService) {
-			ui.btnLogo->setIcon(lastAuthService->avatar());
+			if(!lastAuthService->avatar().isNull())
+				ui.btnLogo->setIcon(lastAuthService->avatar());
+			else
+				ui.btnLogo->setIcon(QIcon(":/logo.png"));
 			ui.labelName->setText(lastAuthService->lastName() + " " + lastAuthService->firstName());
 			ui.labelLogin->setText(lastAuthService->login());
 			long long totalSpace = lastAuthService->storageTotalSpace();

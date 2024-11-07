@@ -59,7 +59,7 @@ public slots:
 	long long storageTotalSpace() override;
 	long long storageUsedSpace() override;
 
-	bool checkFileExistence(QString path) override;
+	bool checkFileExistence(QString path, QString nameFile) override;
 	QStringList listFileNames(QString path) override;
 	void loadFileInfo(QString path) override;
 	QDateTime lastModified() override;

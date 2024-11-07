@@ -56,7 +56,7 @@ public slots:
 	virtual long long storageUsedSpace() = 0;
 
 	// check file existence
-	virtual bool checkFileExistence(QString path) = 0;
+	virtual bool checkFileExistence(QString path, QString nameFile) = 0;
 
 	// list file names
 	virtual QStringList listFileNames(QString path) = 0;
