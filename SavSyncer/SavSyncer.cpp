@@ -147,6 +147,15 @@ void SavSyncer::handlerSuccessfulSignIn() {
     // back up before sign in if backup file is exists
     QByteArray backupData = loadBackup();
     if (!backupData.isEmpty() && !QJsonDocument::fromJson(QByteArray::fromBase64(backupData)).isNull()) {
+
+        // show window
+        if (isMinimized())
+            showNormal();
+        show();
+        raise();
+
+        QMessageBox::information(nullptr, "Резервное копирование", "Предыдущее сеанс работы программы был завершен некорректно. "
+            "Программа вернется до момента последнего успешного действия! Полжалуйста проверте актуальность заданных параметров. ");
         profile->uploadGameData(".ss", backupData);
         if (profile->error()) {
             CRITICAL_MSG("Upload backup service file \".ss\" failed");
@@ -188,6 +197,13 @@ void SavSyncer::handlerSuccessfulSignIn() {
     bool fileExistence = profile->checkFileExistence("", ".ss");
     if (profile->error()) {
         CRITICAL_MSG("Failed to read user data correctly");
+
+        // show window
+        if (isMinimized())
+            showNormal();
+        show();
+        raise();
+
         QMessageBox::critical(nullptr, "Ошибка авторизации", "Не удалось корректно прочиать данные о пользователе! Пожалуйста перезайдите в акаунт.");
         handlerSignOut();
         emit deleteWaitingGame();
@@ -576,10 +592,53 @@ void SavSyncer::deserializeFolder(const QByteArray& jsonData, const QString& tar
     }
 }
 
+QStringList SavSyncer::findFiles(const QString& path, const QString& fileName) {
+    
+    QStringList output;
+
+    QDir dir(path);
+    if (!dir.exists())
+        return QStringList();
+
+    QFileInfoList entries = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries);
+    for (const QFileInfo& entry : entries) {
+        if (entry.isDir())
+            output.append(findFiles(entry.filePath(), fileName));
+        else if (entry.fileName() == fileName)
+            output.append(entry.filePath());
+    }
+    return output;
+}
+
+bool SavSyncer::removeDirectory(const QString& dirPath) {
+    QDir dir(dirPath);
+    if (!dir.exists()) {
+        CRITICAL_MSG("Directory does not exist: " + dirPath);
+        return false;
+    }
+
+    foreach(QString file, dir.entryList(QDir::NoDotAndDotDot | QDir::AllEntries)) {
+        QString fullPath = dir.filePath(file);
+        if (QFileInfo(fullPath).isDir())
+            removeDirectory(fullPath);
+        else
+            QFile::remove(fullPath);
+    }
+
+    return dir.rmdir(dirPath);
+}
+
 void SavSyncer::syncGame(Game* game) {
 
     if (!profile->isOnline()) {
         WARNING_MSG("User is not authorized");
+
+        // show window
+        if (isMinimized())
+            showNormal();
+        show();
+        raise();
+
         QMessageBox::warning(nullptr, "Предупреждение", "Необходимо войти в учетную запись.");
         return;
     }
@@ -648,37 +707,77 @@ void SavSyncer::syncGame(Game* game) {
                 QMessageBox msg;
                 msg.setIcon(QMessageBox::Information);
                 msg.setWindowTitle("Синхронизация данных");
-                msg.setText("Были изменены данные игры " + game->name() + ". Для продолжения выберите где находятся актуальные данные.");
                 msg.setWindowFlags(msg.windowFlags() & ~Qt::AA_DisableWindowContextHelpButton);
                 msg.setStandardButtons(QMessageBox::Yes);
                 msg.addButton(QMessageBox::No);
                 msg.addButton(QMessageBox::Cancel);
                 msg.setDefaultButton(QMessageBox::Yes);
                 QAbstractButton* yesButton = msg.button(QMessageBox::Yes);
-                yesButton->setText("На диске");
                 QAbstractButton* noButton = msg.button(QMessageBox::No);
-                noButton->setText("На компьютере");
                 noButton->setMinimumWidth(120);
                 QAbstractButton* cancelButton = msg.button(QMessageBox::Cancel);
                 cancelButton->setText("Отмена");
-                if (jsonGameInfo["name"].toString() != game->name() || jsonGameInfo["path_game"].toString() != game->filePath() ||
-                    jsonGameInfo["path_gamesave"].toString() != game->pathGameSave())
-                {
-                    
-                    int res = msg.exec();
-                    if (res == QMessageBox::Yes)
-                        downloadSave = true;
-                    else if (res == QMessageBox::No)
-                        uploadSave = true;
-                    else {
-                        game->setBusy(false);
-                        game->setSyncMode(SyncMode::SyncUncompleted);
-                        emit syncWaitingGame();
-                        return;
+
+                // find data another user
+                bool foundAnotherUser = false;
+                QStringList filesSavSyncer = findFiles(game->pathGameSave(), ".savsyncer");
+                for (QString itemFile : filesSavSyncer) {
+                    QFile file(itemFile);
+                    if (file.open(QIODevice::ReadOnly)) {
+                        QString fileData = file.readAll();
+                        file.close();
+                        QString fileUserId = fileData.mid(fileData.indexOf("user_id") + QString("user_id: ").size(), fileData.indexOf("\r\n", fileData.indexOf("user_id")) 
+                            - (fileData.indexOf("user_id") + QString("user_id: ").size()));
+                        if (fileUserId != profile->getId()) {
+
+                            // show window
+                            if (isMinimized())
+                                showNormal();
+                            show();
+                            raise();
+
+                            msg.setText("Данные игры " + game->name() + " или часть данных принадлежат другому пользователю. "
+                                "Хотите ли вы полностью заменить их на свои данные или сохранить эти данные к себе на диск?");
+                            yesButton->setText("Заменить");
+                            noButton->setText("Сохранить на диск");
+                            int res = msg.exec();
+                            if (res == QMessageBox::Yes) {
+                                removeDirectory(game->pathGameSave());
+                                downloadSave = true;
+                            }
+                            else if (res == QMessageBox::No) {
+                                for (QString& rmFile : filesSavSyncer)
+                                    QFile::remove(rmFile);
+                                uploadSave = true;
+                            }
+                            else {
+                                game->setBusy(false);
+                                game->setSyncMode(SyncMode::SyncUncompleted);
+                                emit syncWaitingGame();
+                                return;
+                            }
+
+                            foundAnotherUser = true;
+                            break;
+                        }
                     }
                 }
-                else {
-                    if (!QFileInfo(game->pathGameSave() + "/.savsyncer").exists()){
+                if (foundAnotherUser)
+                    break;
+                else if (!filesSavSyncer.isEmpty()) {
+                    if (jsonGameInfo["name"].toString() != game->name() || jsonGameInfo["path_game"].toString() != game->filePath() ||
+                        jsonGameInfo["path_gamesave"].toString() != game->pathGameSave())
+                    {
+
+                        // show window
+                        if (isMinimized())
+                            showNormal();
+                        show();
+                        raise();
+
+                        msg.setText("Были изменены данные игры " + game->name() + ". Для продолжения выберите где находятся актуальные данные.");
+                        yesButton->setText("На диске");
+                        noButton->setText("На компьютере");
                         int res = msg.exec();
                         if (res == QMessageBox::Yes)
                             downloadSave = true;
@@ -690,6 +789,29 @@ void SavSyncer::syncGame(Game* game) {
                             emit syncWaitingGame();
                             return;
                         }
+                    }
+                }
+                else {
+
+                    // show window
+                    if (isMinimized())
+                        showNormal();
+                    show();
+                    raise();
+
+                    msg.setText("Были изменены данные игры " + game->name() + ". Для продолжения выберите где находятся актуальные данные.");
+                    yesButton->setText("На диске");
+                    noButton->setText("На компьютере");
+                    int res = msg.exec();
+                    if (res == QMessageBox::Yes)
+                        downloadSave = true;
+                    else if (res == QMessageBox::No)
+                        uploadSave = true;
+                    else {
+                        game->setBusy(false);
+                        game->setSyncMode(SyncMode::SyncUncompleted);
+                        emit syncWaitingGame();
+                        return;
                     }
                 }
                 break;
@@ -706,8 +828,9 @@ void SavSyncer::syncGame(Game* game) {
                 // create local .savsyncer
                 QFile file(game->pathGameSave() + "/.savsyncer");
                 if (file.open(QIODevice::WriteOnly)) {
-                    QString output = "---SavSyncer---\r\nVersion: " + version + "\r\nBuild date: " 
-                        + buildDate + "\r\nVersion API: " + versionAPI + "\r\nContact: " + contact;
+                    QString output = "---SavSyncer---\r\nVersion: " + version + "\r\nBuild date: "
+                        + buildDate + "\r\nVersion API: " + versionAPI + "\r\nContact: " + contact
+                        + "\r\n\r\n[" + profile->serviceName() + "]\r\nuser_id: " + profile->getId();
                     file.write(output.toUtf8());
                     file.close();
                     setLastModifiedTime(file.fileName(), lastLocalGameDataModified);
@@ -883,6 +1006,13 @@ void SavSyncer::syncGame(Game* game) {
 void SavSyncer::syncAllGame() {
     if (!profile->isOnline()) {
         WARNING_MSG("User is not authorized");
+
+        // show window
+        if (isMinimized())
+            showNormal();
+        show();
+        raise();
+
         QMessageBox::warning(nullptr, "Предупреждение", "Необходимо войти в учетную запись.");
         return;
     }
@@ -1236,7 +1366,29 @@ void SavSyncer::closeEvent(QCloseEvent* event) {
         hide();
     }
     else {
-        hide();
+        QMessageBox msgClose(QMessageBox::Question, "Выход", "Вы действительно хотите выйти?", QMessageBox::Yes | QMessageBox::Cancel);
+        auto yesBtn = msgClose.button(QMessageBox::Yes);
+        yesBtn->setText("Да");
+        auto cancelBtn = msgClose.button(QMessageBox::Cancel);
+        cancelBtn->setText("Отмена");
+        if (!listSyncGame.isEmpty() || !listDeleteGame.isEmpty()) {
+            msgClose.setText("В данный момент идет синхронизация. Вы действительно хотите выйти?");
+            int res = msgClose.exec();
+            if (res != QMessageBox::Yes) {
+                event->ignore();
+                return;
+            }
+            else
+                qApp->quit();
+        }
+        else {
+            int res = msgClose.exec();
+            if (res != QMessageBox::Yes) {
+                event->ignore();
+                return;
+            }
+        }
+
         if (about)
             about->close();
         if (profile)
@@ -1248,7 +1400,8 @@ void SavSyncer::closeEvent(QCloseEvent* event) {
 }
 
 void SavSyncer::hideEvent(QHideEvent* event) {
-    trayIcon->show();
+    if(!isMinimized())
+        trayIcon->show();
     QWidget::hideEvent(event);
 }
 

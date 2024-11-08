@@ -52,6 +52,8 @@ private slots:
     QByteArray serializeFolder(const QString& folderPath);
     bool setLastModifiedTime(const QString& filePath, const QDateTime& newTime);
     void deserializeFolder(const QByteArray& jsonData, const QString& targetPath, bool &ok);
+    QStringList findFiles(const QString& path, const QString& fileName);
+    bool removeDirectory(const QString& dirPath);
     void syncGame(Game* game);
     void syncAllGame();
     void deleteGame(Game* game);
@@ -90,7 +92,7 @@ protected:
 private:
     Ui::SavSyncer ui;
     QSettings* regSettings = nullptr;
-    QString version = "0.2 (alpha)";
+    QString version = "0.2.1 (alpha)";
     QString buildDate = QDateTime::currentDateTime().toString("dd.MM.yyyy");
     QString versionAPI = "0.2 (alpha)";
     QString contact = "maksimuchhka@list.ru";

@@ -23,14 +23,16 @@ PageGameList::PageGameList(QSettings* regset, QWidget *parent)
 		});
 
 	connect(ui.btnReviewGame, &QPushButton::clicked, this, [this]() {
-		QString path = QFileDialog::getOpenFileName(nullptr, "Путь к игре", "", "Executable file (*.exe)");
+		QString curretPath = QFileInfo(ui.lineEditPathGame->text()).exists() ? ui.lineEditPathGame->text() : "";
+		QString path = QFileDialog::getOpenFileName(nullptr, "Путь к игре", curretPath, "Executable file (*.exe)");
 		if (!path.isEmpty())
 			ui.lineEditPathGame->setText(path);
 		ui.lineEditPathGame->setCursorPosition(0);
 		emit updateGameSaveInfo();
 		});
 	connect(ui.btnReviewGameSave, &QPushButton::clicked, this, [this]() {
-		QString path = QFileDialog::getExistingDirectory(nullptr, "Путь к папке с сохранениями игры");
+		QString curretPath = QDir(ui.lineEditPathGameSave->text()).exists() ? ui.lineEditPathGameSave->text() : "";
+		QString path = QFileDialog::getExistingDirectory(nullptr, "Путь к папке с сохранениями игры", curretPath);
 		if(!path.isEmpty())
 			ui.lineEditPathGameSave->setText(path);
 		ui.lineEditPathGameSave->setCursorPosition(0);

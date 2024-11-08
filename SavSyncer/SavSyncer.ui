@@ -299,6 +299,9 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
          <property name="cursor">
           <cursorShape>PointingHandCursor</cursorShape>
          </property>
+         <property name="toolTip">
+          <string>Синхронизировать все игры</string>
+         </property>
          <property name="styleSheet">
           <string notr="true"/>
          </property>
@@ -327,6 +330,9 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
          </property>
          <property name="cursor">
           <cursorShape>PointingHandCursor</cursorShape>
+         </property>
+         <property name="toolTip">
+          <string>Учетная запись</string>
          </property>
          <property name="styleSheet">
           <string notr="true"/>
