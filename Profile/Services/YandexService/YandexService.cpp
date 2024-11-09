@@ -528,6 +528,7 @@ QByteArray YandexService::GET(QString token, QUrl url) {
                 textEdit->show();*/
             }
 
+            manager->deleteLater();
             eventLoop.quit();
             });
 
@@ -580,6 +581,7 @@ void YandexService::PUT(QString token, QUrl url, QByteArray data) {
                 textEdit->show();*/
             }
 
+            manager->deleteLater();
             eventLoop.quit();
             });
 
@@ -630,6 +632,7 @@ void YandexService::DELETE(QString token, QUrl url) {
                 textEdit->show();*/
             }
 
+            manager->deleteLater();
             eventLoop.quit();
             });
 

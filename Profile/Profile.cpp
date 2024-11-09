@@ -34,6 +34,7 @@ Profile::Profile(QSettings* regset, QWidget *parent)
 }
 
 Profile::~Profile() {
+	lastAuthService = nullptr;
 	qDeleteAll(services);
 	services.clear();
 }

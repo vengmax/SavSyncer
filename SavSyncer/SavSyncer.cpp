@@ -105,6 +105,12 @@ SavSyncer::SavSyncer(QWidget *parent)
 }
 
 SavSyncer::~SavSyncer(){
+    regSettings->deleteLater();
+
+    about->deleteLater();
+    profile->deleteLater();
+    settings->deleteLater();
+
     if (msgSignOut)
         delete msgSignOut;
 }
@@ -760,6 +766,7 @@ void SavSyncer::syncGame(Game* game) {
                                 uploadSave = true;
                             }
                             else {
+                                anotherThread->quit();
                                 game->setBusy(false);
                                 game->setSyncMode(SyncMode::SyncUncompleted);
                                 emit syncWaitingGame();
@@ -791,6 +798,7 @@ void SavSyncer::syncGame(Game* game) {
                         else if (res == QMessageBox::No)
                             uploadSave = true;
                         else {
+                            anotherThread->quit();
                             game->setBusy(false);
                             game->setSyncMode(SyncMode::SyncUncompleted);
                             emit syncWaitingGame();
@@ -812,6 +820,7 @@ void SavSyncer::syncGame(Game* game) {
                     else if (res == QMessageBox::No)
                         uploadSave = true;
                     else {
+                        anotherThread->quit();
                         game->setBusy(false);
                         game->setSyncMode(SyncMode::SyncUncompleted);
                         emit syncWaitingGame();
@@ -840,6 +849,7 @@ void SavSyncer::syncGame(Game* game) {
                     setLastModifiedTime(file.fileName(), lastLocalGameDataModified);
                 }
                 else {
+                    anotherThread->quit();
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG(game->name() + ": Create local file \".savsyncer\" failed");
@@ -870,6 +880,7 @@ void SavSyncer::syncGame(Game* game) {
                     eveloop.exec();
 
                 if (!ok) {
+                    anotherThread->quit();
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG(game->name() + ": Serialization of game data failed");
@@ -881,6 +892,7 @@ void SavSyncer::syncGame(Game* game) {
 
                 profile->uploadGameData(nameGameSave, data);
                 if (profile->error()) {
+                    anotherThread->quit();
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG("Synchronization " + game->name() + " failed");
@@ -908,6 +920,7 @@ void SavSyncer::syncGame(Game* game) {
                 dataSS = dataSS.toBase64();
                 profile->uploadGameData(".ss", dataSS);
                 if (profile->error()) {
+                    anotherThread->quit();
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG(game->name() + ": Upload service file \".ss\" failed");
@@ -925,6 +938,7 @@ void SavSyncer::syncGame(Game* game) {
                 // download game save
                 data = profile->downloadGameData(nameGameSave);
                 if (data.isEmpty()) {
+                    anotherThread->quit();
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG("Synchronization " + game->name() + " failed");
@@ -951,6 +965,7 @@ void SavSyncer::syncGame(Game* game) {
                     eveloop.exec();
 
                 if (!ok) {
+                    anotherThread->quit();
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG(game->name() + ": Deserialization of game data failed");
@@ -982,6 +997,7 @@ void SavSyncer::syncGame(Game* game) {
                 dataSS = dataSS.toBase64();
                 profile->uploadGameData(".ss", dataSS);
                 if (profile->error()) {
+                    anotherThread->quit();
                     game->setBusy(false);
                     game->setSyncMode(SyncMode::SyncFailed);
                     CRITICAL_MSG(game->name() + ": Upload service file \".ss\" failed");
