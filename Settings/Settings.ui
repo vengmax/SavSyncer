@@ -266,8 +266,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>429</width>
-            <height>301</height>
+            <width>120</width>
+            <height>51</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_3">
@@ -373,8 +373,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>429</width>
-            <height>301</height>
+            <width>205</width>
+            <height>135</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_4">
@@ -503,52 +503,7 @@
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_6">
-           <item row="1" column="0">
-            <widget class="QLabel" name="label">
-             <property name="enabled">
-              <bool>true</bool>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>27</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">QLabel:disabled{color:grey;}</string>
-             </property>
-             <property name="text">
-              <string>Максимальный размер данных для синхронизации (МБ)</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="2">
-            <widget class="QLineEdit" name="lineEditMaxSyncSize">
-             <property name="enabled">
-              <bool>true</bool>
-             </property>
-             <property name="text">
-              <string>500</string>
-             </property>
-             <property name="placeholderText">
-              <string>в пикселях</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="3">
-            <spacer name="horizontalSpacer">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>136</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item row="3" column="0" colspan="4">
+           <item row="2" column="0" colspan="3">
             <spacer name="verticalSpacer_2">
              <property name="orientation">
               <enum>Qt::Vertical</enum>
@@ -561,7 +516,7 @@
              </property>
             </spacer>
            </item>
-           <item row="2" column="0">
+           <item row="1" column="0">
             <widget class="QCheckBox" name="checkBoxAutoSync">
              <property name="enabled">
               <bool>true</bool>
@@ -671,8 +626,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>429</width>
-            <height>301</height>
+            <width>186</width>
+            <height>87</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout">

@@ -43,8 +43,7 @@ void signalHandler(int signal) {
 
 // message handler
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg) {
-    QDateTime* dateTime = new QDateTime(QDateTime::currentDateTime());
-    auto funcLogger = [type, &context, msg, dateTime]() {
+    auto funcLogger = [type, &context, msg, dateTime = QDateTime::currentDateTime()]() {
         if (logFile->isOpen()) {
             QString prefix;
             switch (type) {
@@ -66,11 +65,10 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
                 break;
             }
 
-            QString logMessage = QString(dateTime->toString("[dd.MM.yyyy hh:mm:ss.zzz] ") + prefix + msg + "\n");
+            QString logMessage = QString(dateTime.toString("[dd.MM.yyyy hh:mm:ss.zzz] ") + prefix + msg + "\n");
             fprintf(stderr, logMessage.toLocal8Bit().constData());
             logFile->write(logMessage.toUtf8());
             logFile->flush();
-            delete dateTime;
         }
         };
 

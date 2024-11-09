@@ -8,8 +8,8 @@ Game::Game(ItemGameList* item, PageGameList* page, QSettings* regset){
 	connect(m_item, SIGNAL(clickedMouseLeftButton()), this, SIGNAL(clickedItemMouseLeftButton()));
 	connect(m_item, SIGNAL(clickedMouseRightButton()), this, SIGNAL(clickedItemMouseRightButton()));
 
-	connect(m_page, SIGNAL(updateGameInfo()), this, SLOT(updateGameInfo()));
-	connect(m_page, SIGNAL(updateGameSaveInfo()), this, SLOT(updateGameSaveInfo()));
+	connect(m_page, SIGNAL(refreshGame()), this, SLOT(refresh()));
+	connect(m_page, SIGNAL(refreshGameInfo()), this, SLOT(refreshInfo()));
 	connect(m_page, &PageGameList::enabledSync, this, [this](bool value) {
 		if(value)
 			m_item->setSyncMode(SyncMode::SyncUncompleted);
@@ -163,7 +163,7 @@ void Game::hideItem() {
 	m_item->hide();
 }
 
-void Game::updateGameInfo() {
+void Game::refresh() {
 
 	QString path = m_page->pathGame();
 	QFileInfo info(path);
@@ -188,7 +188,7 @@ void Game::updateGameInfo() {
 	setIcon(icon);
 }
 
-void Game::updateGameSaveInfo() {
+void Game::refreshInfo() {
 	
 	QApplication::setOverrideCursor(Qt::CursorShape::BusyCursor);
 

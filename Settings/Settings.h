@@ -21,7 +21,6 @@ public:
 	bool getStartUp();
 	bool getStartUpMinimized();
 	bool getBackgroundWork();
-	int getMaxSyncSize();
 	bool getAutoSync();
 	bool getAutoSignIn();
 
@@ -52,9 +51,7 @@ private:
 	bool defaultStartupMinimized = true;
 	bool defaultBackgroundWork = true;
 
-	int maxSyncSize = 500;
 	bool autoSync = false;
-	int defaultMaxSyncSize = 500;
 	bool defaultAutoSync = false;
 
 	bool autoSignIn = true;

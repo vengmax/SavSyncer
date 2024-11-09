@@ -60,8 +60,8 @@ public slots:
 	void showItem();
 	void hideItem();
 
-	void updateGameInfo();
-	void updateGameSaveInfo();
+	void refresh();
+	void refreshInfo();
 
 signals:
 

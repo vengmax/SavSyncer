@@ -8,7 +8,6 @@ Settings::Settings(QSettings* regset, QWidget *parent)
 
     ui.stackedWidgetSettings->setCurrentIndex(0);
 
-    ui.lineEditMaxSyncSize->setValidator(new QIntValidator(1, 9999));
     ui.checkBoxStartUpMinimized->setDisabled(false);
     ui.checkBoxBackgroundWork->setDisabled(false);
     connect(ui.checkBoxStartUp, &QCheckBox::stateChanged, this, [this](int state) {
@@ -51,14 +50,6 @@ Settings::Settings(QSettings* regset, QWidget *parent)
         regSettings->setValue("Settings/BackgroundWork", defaultBackgroundWork);
     }
 
-    QVariant variantMaxSyncSize = regSettings->value("Settings/MaxSyncSize");
-    if (variantMaxSyncSize.isValid())
-        maxSyncSize = variantMaxSyncSize.toInt();
-    else {
-        maxSyncSize = defaultMaxSyncSize;
-        regSettings->setValue("Settings/MaxSyncSize", defaultMaxSyncSize);
-    }
-
     QVariant variantAutoSync = regSettings->value("Settings/AutoSync");
     if (variantAutoSync.isValid())
         autoSync = variantAutoSync.toBool();
@@ -86,7 +77,6 @@ Settings::Settings(QSettings* regset, QWidget *parent)
     else
         ui.checkBoxBackgroundWork->setChecked(backgroundWork);
 
-    ui.lineEditMaxSyncSize->setText(QString::number(maxSyncSize));
     ui.checkBoxAutoSync->setChecked(autoSync);
 
     ui.checkBoxAutoSignIn->setChecked(autoSignIn);
@@ -104,9 +94,6 @@ bool Settings::getStartUpMinimized() {
 }
 bool Settings::getBackgroundWork() {
     return backgroundWork;
-}
-int Settings::getMaxSyncSize() {
-    return maxSyncSize;
 }
 bool Settings::getAutoSync() {
     return autoSync;
@@ -130,15 +117,12 @@ void Settings::on_btnApply_clicked() {
     }
     startup = ui.checkBoxStartUp->isChecked();
     startupMinimized = ui.checkBoxStartUpMinimized->isChecked();
+
     backgroundWork = ui.checkBoxBackgroundWork->isChecked();
-
-    maxSyncSize = ui.lineEditMaxSyncSize->text().toInt();
     autoSync = ui.checkBoxAutoSync->isChecked();
-
     autoSignIn = ui.checkBoxAutoSignIn->isChecked();
 
     regSettings->setValue("Settings/BackgroundWork", backgroundWork);
-    regSettings->setValue("Settings/MaxSyncSize", maxSyncSize);
     regSettings->setValue("Settings/AutoSync", autoSync);
     regSettings->setValue("Settings/AutoSignIn", autoSignIn);
 }
@@ -152,7 +136,6 @@ void Settings::on_btnReset_clicked() {
     startupMinimized = defaultStartupMinimized;
     backgroundWork = defaultBackgroundWork;
 
-    maxSyncSize = defaultMaxSyncSize;
     autoSync = defaultAutoSync;
 
     autoSignIn = defaultAutoSignIn;
@@ -238,7 +221,6 @@ void Settings::showEvent(QShowEvent* event) {
     else
         ui.checkBoxBackgroundWork->setChecked(backgroundWork);
 
-    ui.lineEditMaxSyncSize->setText(QString::number(maxSyncSize));
     ui.checkBoxAutoSync->setChecked(autoSync);
 
     ui.checkBoxAutoSignIn->setChecked(autoSignIn);

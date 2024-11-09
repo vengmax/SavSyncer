@@ -20,11 +20,11 @@ PageGameList::PageGameList(QSettings* regset, QWidget *parent)
 
 	connect(ui.btnClearPathGame, &QPushButton::clicked, this, [this]() { 
 		ui.lineEditPathGame->clear(); 
-		emit updateGameSaveInfo();
+		emit refreshGameInfo();
 		});
 	connect(ui.btnClearPathGameSave, &QPushButton::clicked, this, [this]() { 
 		ui.lineEditPathGameSave->clear(); 
-		emit updateGameSaveInfo();
+		emit refreshGameInfo();
 		});
 
 	connect(ui.btnReviewGame, &QPushButton::clicked, this, [this]() {
@@ -33,7 +33,7 @@ PageGameList::PageGameList(QSettings* regset, QWidget *parent)
 		if (!path.isEmpty())
 			ui.lineEditPathGame->setText(path);
 		ui.lineEditPathGame->setCursorPosition(0);
-		emit updateGameSaveInfo();
+		emit refreshGameInfo();
 		});
 	connect(ui.btnReviewGameSave, &QPushButton::clicked, this, [this]() {
 		QString curretPath = QDir(ui.lineEditPathGameSave->text()).exists() ? ui.lineEditPathGameSave->text() : "";
@@ -41,10 +41,10 @@ PageGameList::PageGameList(QSettings* regset, QWidget *parent)
 		if(!path.isEmpty())
 			ui.lineEditPathGameSave->setText(path);
 		ui.lineEditPathGameSave->setCursorPosition(0);
-		emit updateGameSaveInfo();
+		emit refreshGameInfo();
 		});
 
-	connect(ui.btnUpdateGameSaveInfo, SIGNAL(clicked()), this, SIGNAL(updateGameSaveInfo()));
+	connect(ui.btnUpdateGameSaveInfo, SIGNAL(clicked()), this, SIGNAL(refreshGameInfo()));
 
 	connect(ui.lineEditPathGame, &QLineEdit::textChanged, this, [this](const QString& text) {
 		QFileInfo checkInfo = QFileInfo(text);
@@ -57,8 +57,9 @@ PageGameList::PageGameList(QSettings* regset, QWidget *parent)
 			ui.lineEditPathGame->setStyleSheet("");
 			validPathGame = true;
 			emit validPath(true);
-			emit updateGameInfo();
+			emit refreshGame();
 		}
+		emit refreshGameInfo();
 		});
 
 	connect(ui.lineEditPathGameSave, &QLineEdit::textChanged, this, [this](const QString& text) {
@@ -73,7 +74,7 @@ PageGameList::PageGameList(QSettings* regset, QWidget *parent)
 			validPathGameSave = true;
 			emit validPath(true);
 		}
-		emit updateGameSaveInfo();
+		emit refreshGameInfo();
 		});
 
 	ui.lineEditPathGame->textChanged("");

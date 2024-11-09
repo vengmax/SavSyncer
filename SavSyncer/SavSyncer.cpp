@@ -456,23 +456,46 @@ QByteArray SavSyncer::serializeFolder(const QString& folderPath, qint64& startSi
         QString filePath = dir.absoluteFilePath(fileName);
         if (QFileInfo(filePath).isFile()) {
             QJsonObject fileObject;
-            qint64 sizeFile = QFileInfo(filePath).size();
-            startSize += sizeFile;
-            if (startSize > (long long)settings->getMaxSyncSize() * 1024 * 1024) {
+            
+            // check size file
+            qint64 sizeFileBase64 = ceil(QFileInfo(filePath).size() / (double)3) * 4;
+            if ((startSize + sizeFileBase64) >= (qint64)(1.4 * 1024 * 1024 * 1024 - 1024)) {
+                CRITICAL_MSG("Maximum game data size exceeded (max size: 1 GB)");
                 ok = false;
                 return QByteArray();
             }
 
-            fileObject["size"] = sizeFile;
-            fileObject["modified"] = QFileInfo(filePath).lastModified().toString("yyyy_MM_dd_hh-mm-ss-zzz");
+            // load file
             QFile file(filePath);
             QByteArray fileData;
             if (file.open(QIODevice::ReadOnly)) {
                 fileData = file.readAll();
                 file.close();
             }
+            else {
+                CRITICAL_MSG("Failed to open file " + filePath);
+                ok = false;
+                return QByteArray();
+            }
+
+            // create json
+            fileObject["size"] = QFileInfo(filePath).size();
+            fileObject["modified"] = QFileInfo(filePath).lastModified().toString("yyyy_MM_dd_hh-mm-ss-zzz");
+            fileObject["data"] = ".";
+
+            // check size file + json
+            qint64 sizeJsonFile = startSize + QJsonDocument(fileObject).toJson(QJsonDocument::Compact).size() + sizeFileBase64;
+            if (sizeJsonFile >= (qint64)(1.4 * 1024 * 1024 * 1024 - 1024)) {
+                qDebug() << "Error: Maximum game data size exceeded (max size: 1 GB)";
+                ok = false;
+                return QByteArray();
+            }
+
             fileObject["data"] = QString(fileData.toBase64());
             folderObject["file:" + fileName] = fileObject;
+
+            int serviceSymbols = 6;
+            startSize += QJsonDocument(fileObject).toJson(QJsonDocument::Compact).size() + QString("file:" + fileName).size() + serviceSymbols;
         }
         else {
             QByteArray dataJSON = serializeFolder(filePath, startSize, ok);
@@ -481,10 +504,13 @@ QByteArray SavSyncer::serializeFolder(const QString& folderPath, qint64& startSi
 
             QJsonDocument subfolderObject = QJsonDocument::fromJson(dataJSON);
             folderObject["folder:" + fileName] = subfolderObject.object();
+
+            int serviceSymbols = 6;
+            startSize += QString("folder:" + fileName).size() + serviceSymbols;
         }
     }
     QJsonDocument document(folderObject);
-    return document.toJson();
+    return document.toJson(QJsonDocument::Compact);
 }
 
 bool SavSyncer::setLastModifiedTime(const QString& filePath, const QDateTime& newTime) {
@@ -499,7 +525,6 @@ bool SavSyncer::setLastModifiedTime(const QString& filePath, const QDateTime& ne
     );
 
     if (hFile == INVALID_HANDLE_VALUE) {
-        CRITICAL_MSG("Failed to open file");
         CloseHandle(hFile);
         return false;
     }
@@ -513,7 +538,6 @@ bool SavSyncer::setLastModifiedTime(const QString& filePath, const QDateTime& ne
 
     // Установка времени последнего изменения
     if (!SetFileTime(hFile, NULL, NULL, &ft)) {
-        CRITICAL_MSG("Failed to file set last modified date");
         CloseHandle(hFile);
         return false;
     }
@@ -543,7 +567,7 @@ void SavSyncer::deserializeFolder(const QByteArray& jsonData, const QString& tar
 
     for (QString &key: objectJSON.keys()){
         if (key.startsWith("folder:")) {
-            QByteArray data = QJsonDocument(objectJSON.value(key).toObject()).toJson();
+            QByteArray data = QJsonDocument(objectJSON.value(key).toObject()).toJson(QJsonDocument::Compact);
             deserializeFolder(data, targetPath + "/" + key.remove("folder:"), ok);
             if (!ok)
                 return;
@@ -649,7 +673,8 @@ void SavSyncer::syncGame(Game* game) {
         return;
     }
 
-    if (game->saveSize() < (long long)settings->getMaxSyncSize() * 1024 * 1024) {
+    game->refreshInfo();
+    if (game->saveSize() < (qint64)(1024 * 1024 * 1024)) {
 
         // if another game is syncing, then put in queue
         if (!listSyncGame.isEmpty()) {
@@ -674,7 +699,7 @@ void SavSyncer::syncGame(Game* game) {
         anotherThread->start();
 
         // local modified
-        game->updateGameSaveInfo();
+        game->refreshInfo();
         QDateTime lastLocalGameDataModified = game->dateLastModified();
         QDateTime lastServiceGameDataModified = QDateTime(QDate(1, 1, 1), QTime(1, 1));
 
@@ -750,7 +775,7 @@ void SavSyncer::syncGame(Game* game) {
                     break;
                 else if (!filesSavSyncer.isEmpty()) {
                     if (jsonGameInfo["name"].toString() != game->name() || jsonGameInfo["path_game"].toString() != game->filePath() ||
-                        jsonGameInfo["path_gamesave"].toString() != game->pathGameSave())
+                        jsonGameInfo["path_gamesave"].toString() != game->pathGameSave() || !QFileInfo(".savsyncer").exists())
                     {
 
                         // show window
@@ -823,33 +848,6 @@ void SavSyncer::syncGame(Game* game) {
                     return;
                 }
 
-                // create .ss
-                QJsonObject jsonObjectGameData;
-                jsonObjectGameData["name"] = game->name();
-                jsonObjectGameData["modified"] = lastLocalGameDataModified.toString("yyyy_MM_dd_hh-mm-ss-zzz");
-                jsonObjectGameData["path_game"] = game->filePath();
-                jsonObjectGameData["path_gamesave"] = game->pathGameSave();
-                jsonObjectGameData["name_gamesave"] = nameGameSave;
-                QJsonObject jsonObject;
-                if (!documentJSON.isEmpty())
-                    jsonObject = documentJSON.object();
-                jsonObject[QString::number(game->id())] = jsonObjectGameData;
-                documentJSON = QJsonDocument(jsonObject);
-
-                // upload .ss
-                QByteArray dataSS = documentJSON.toJson();
-                dataSS = dataSS.toBase64();
-                profile->uploadGameData(".ss", dataSS);
-                if (profile->error()) {
-                    game->setBusy(false);
-                    game->setSyncMode(SyncMode::SyncFailed);
-                    CRITICAL_MSG(game->name() + ": Upload service file \".ss\" failed");
-                    if(!isVisible())
-                        trayIcon->showMessage("Ошибка синхронизации", "Произошла ошибка при синхронизации " + game->name(), QSystemTrayIcon::Warning);
-                    emit syncWaitingGame();
-                    return;
-                }
-
                 // upload game save
                 bool ok = true;
                 qint64 startSize = 0;
@@ -859,9 +857,11 @@ void SavSyncer::syncGame(Game* game) {
                     data = serializeFolder(path, startSize, ok);
                     INFO_MSG("Finished serialize data " + game->name());
 
-                    INFO_MSG("Start compress data " + game->name());
-                    data = qCompress(data, 4);
-                    INFO_MSG("Finished compress data " + game->name());
+                    if (ok) {
+                        INFO_MSG("Start compress data " + game->name());
+                        data = qCompress(data, 4);
+                        INFO_MSG("Finished compress data " + game->name());
+                    }
 
                     eveloop.quit();
                     };
@@ -889,6 +889,33 @@ void SavSyncer::syncGame(Game* game) {
                     return;
                 }
 
+                // create .ss
+                QJsonObject jsonObjectGameData;
+                jsonObjectGameData["name"] = game->name();
+                jsonObjectGameData["modified"] = lastLocalGameDataModified.toString("yyyy_MM_dd_hh-mm-ss-zzz");
+                jsonObjectGameData["path_game"] = game->filePath();
+                jsonObjectGameData["path_gamesave"] = game->pathGameSave();
+                jsonObjectGameData["name_gamesave"] = nameGameSave;
+                QJsonObject jsonObject;
+                if (!documentJSON.isEmpty())
+                    jsonObject = documentJSON.object();
+                jsonObject[QString::number(game->id())] = jsonObjectGameData;
+                documentJSON = QJsonDocument(jsonObject);
+
+                // upload .ss
+                QByteArray dataSS = documentJSON.toJson();
+                dataSS = dataSS.toBase64();
+                profile->uploadGameData(".ss", dataSS);
+                if (profile->error()) {
+                    game->setBusy(false);
+                    game->setSyncMode(SyncMode::SyncFailed);
+                    CRITICAL_MSG(game->name() + ": Upload service file \".ss\" failed");
+                    if (!isVisible())
+                        trayIcon->showMessage("Ошибка синхронизации", "Произошла ошибка при синхронизации " + game->name(), QSystemTrayIcon::Warning);
+                    emit syncWaitingGame();
+                    return;
+                }
+
                 // save new service file .ss
                 docServiceFile = QJsonDocument(documentJSON);
             }
@@ -905,7 +932,7 @@ void SavSyncer::syncGame(Game* game) {
                     emit syncWaitingGame();
                     return;
                 }
-
+                
                 bool ok = true;
                 auto funcUncompress = [this, path, &data, &eveloop, game, &ok]() {
 
@@ -933,7 +960,7 @@ void SavSyncer::syncGame(Game* game) {
                 }
 
                 // update info game save
-                game->updateGameSaveInfo();
+                game->refreshInfo();
                 lastLocalGameDataModified = game->dateLastModified();
 
                 // create .ss
@@ -977,19 +1004,14 @@ void SavSyncer::syncGame(Game* game) {
         emit syncWaitingGame();
     }
     else {
-        CRITICAL_MSG("Maximum data size for synchronization exceeded");
+        CRITICAL_MSG("Maximum game data size for synchronization exceeded (max size: 1 GB)");
+
+        // show window
+        showWindowLastState(this);
+        QMessageBox::critical(nullptr, "Ошибка синхронизации", "Размер данных сохранений " + game->name() + " превышает максимальный допустимый размер "
+            "(максимальный допустимый размер: 1 ГБ)");
+
         game->setSyncMode(SyncMode::SyncFailed);
-        long long maxSaveSize = (long long)settings->getMaxSyncSize() * 1024 * 1024;
-        QString strMaxSaveSize;
-        if (maxSaveSize < 1LL * 1024 * 1024)
-            strMaxSaveSize = QString::number(maxSaveSize / (double)(1024), 'f', 1) + " КБ";
-        else if (maxSaveSize < 1LL * 1024 * 1024 * 1024)
-            strMaxSaveSize = QString::number(maxSaveSize / (double)(1024 * 1024), 'f', 1) + " МБ";
-        else if (maxSaveSize < 1LL * 1024 * 1024 * 1024 * 1024)
-            strMaxSaveSize = QString::number(maxSaveSize / (double)(1LL * 1024 * 1024 * 1024), 'f', 1) + " ГБ";
-        else
-            strMaxSaveSize = QString::number(maxSaveSize / (double)(1LL * 1024 * 1024 * 1024 * 1024), 'f', 1) + " ТБ";
-        //QMessageBox::critical(nullptr, "Ошибка синхронизации", "Максимальный размер данных " + strMaxSaveSize);
     }
 }
 

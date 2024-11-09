@@ -42,8 +42,8 @@ public:
 
 signals:
 
-	void updateGameInfo();
-	void updateGameSaveInfo();
+	void refreshGame();
+	void refreshGameInfo();
 	void enabledSync(bool value);
 	void validPath(bool value);
 
