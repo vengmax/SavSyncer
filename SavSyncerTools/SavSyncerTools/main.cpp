@@ -4,38 +4,115 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDir>
+#include <Windows.h>
 
-QByteArray serializeFolder(const QString& folderPath) {
+QByteArray serializeFolder(const QString& folderPath, qint64& startSize, bool& ok) {
+    ok = true;
+
     QJsonObject folderObject;
     QDir dir(folderPath);
     foreach(const QString & fileName, dir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
         QString filePath = dir.absoluteFilePath(fileName);
         if (QFileInfo(filePath).isFile()) {
             QJsonObject fileObject;
-            fileObject["size"] = QFileInfo(filePath).size();
+
+            // check size file
+            qint64 sizeFileBase64 = ceil(QFileInfo(filePath).size() / (double)3) * 4;
+            if ((startSize + sizeFileBase64) >= (qint64)(1.4 * 1024 * 1024 * 1024 - 1024)) {
+                qDebug() << "Error: Maximum game data size exceeded (max size: 1 GB)";
+                ok = false;
+                return QByteArray();
+            }
+
+            // load file
             QFile file(filePath);
             QByteArray fileData;
             if (file.open(QIODevice::ReadOnly)) {
                 fileData = file.readAll();
                 file.close();
             }
+            else {
+                qDebug() << "Error: Failed to open file " + filePath;
+                ok = false;
+                return QByteArray();
+            }
+
+            // create json
+            fileObject["size"] = QFileInfo(filePath).size();
+            fileObject["modified"] = QFileInfo(filePath).lastModified().toString("yyyy_MM_dd_hh-mm-ss-zzz");
+            fileObject["data"] = ".";
+
+            // check size file + json
+            qint64 sizeJsonFile = startSize + QJsonDocument(fileObject).toJson(QJsonDocument::Compact).size() + sizeFileBase64;
+            if (sizeJsonFile >= (qint64)(1.4 * 1024 * 1024 * 1024 - 1024)) {
+                qDebug() << "Error: Maximum game data size exceeded (max size: 1 GB)";
+                ok = false;
+                return QByteArray();
+            }
+
             fileObject["data"] = QString(fileData.toBase64());
             folderObject["file:" + fileName] = fileObject;
+
+            int serviceSymbols = 6;
+            startSize += QJsonDocument(fileObject).toJson(QJsonDocument::Compact).size() + QString("file:" + fileName).size() + serviceSymbols;
         }
         else {
-            QJsonDocument subfolderObject = QJsonDocument::fromJson(serializeFolder(filePath));
+            QByteArray dataJSON = serializeFolder(filePath, startSize, ok);
+            if (!ok)
+                return QByteArray();
+
+            QJsonDocument subfolderObject = QJsonDocument::fromJson(dataJSON);
             folderObject["folder:" + fileName] = subfolderObject.object();
+
+            int serviceSymbols = 6;
+            startSize += QString("folder:" + fileName).size() + serviceSymbols;
         }
     }
     QJsonDocument document(folderObject);
-    return document.toJson();
+    return document.toJson(QJsonDocument::Compact);
 }
 
-void deserializeFolder(const QByteArray& jsonData, const QString& targetPath) {
+bool setLastModifiedTime(const QString& filePath, const QDateTime& newTime) {
+    HANDLE hFile = CreateFileA(
+        filePath.toStdString().c_str(),
+        GENERIC_WRITE,
+        FILE_SHARE_WRITE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+
+    if (hFile == INVALID_HANDLE_VALUE) {
+        CloseHandle(hFile);
+        return false;
+    }
+
+    ULARGE_INTEGER ull;
+    ull.QuadPart = newTime.toMSecsSinceEpoch() * 10000 + 116444736000000000;
+
+    FILETIME ft;
+    ft.dwLowDateTime = ull.LowPart;
+    ft.dwHighDateTime = ull.HighPart;
+
+    // Установка времени последнего изменения
+    if (!SetFileTime(hFile, NULL, NULL, &ft)) {
+        CloseHandle(hFile);
+        return false;
+    }
+
+    CloseHandle(hFile);
+    return true;
+}
+
+void deserializeFolder(const QByteArray& jsonData, const QString& targetPath, bool& ok) {
+    ok = true;
+
     QJsonDocument documentJSON = QJsonDocument::fromJson(jsonData);
     QJsonObject objectJSON = documentJSON.object();
     if (documentJSON.isNull() || !documentJSON.isObject()) {
         qDebug() << "Error: Data is not a JSON file";
+        ok = false;
         return;
     }
 
@@ -43,38 +120,46 @@ void deserializeFolder(const QByteArray& jsonData, const QString& targetPath) {
     targetDir.mkpath(targetPath);
     if (!targetDir.exists()) {
         qDebug() << "Error: Failed to create folder";
+        ok = false;
         return;
     }
 
     for (QString& key : objectJSON.keys()) {
         if (key.startsWith("folder:")) {
-            QByteArray data = QJsonDocument(objectJSON.value(key).toObject()).toJson();
-            deserializeFolder(data, targetPath + "/" + key.remove("folder:"));
+            QByteArray data = QJsonDocument(objectJSON.value(key).toObject()).toJson(QJsonDocument::Compact);
+            deserializeFolder(data, targetPath + "/" + key.remove("folder:"), ok);
+            if (!ok)
+                return;
         }
         else if (key.startsWith("file:")) {
             QJsonObject fileObject = objectJSON.value(key).toObject();
-            if (fileObject.contains("data") && fileObject.contains("size")) {
+            if (fileObject.contains("data") && fileObject.contains("size") && fileObject.contains("modified")) {
 
                 QByteArray base64Data = fileObject["data"].toString().toUtf8();
+                QDateTime dateModified = QDateTime::fromString(fileObject["modified"].toString(), "yyyy_MM_dd_hh-mm-ss-zzz");
                 QByteArray data = QByteArray::fromBase64(base64Data);
 
                 QFile file(targetPath + "/" + key.remove("file:"));
                 if (file.open(QIODevice::WriteOnly)) {
                     file.write(data);
                     file.close();
+                    setLastModifiedTime(file.fileName(), dateModified);
                 }
                 else {
                     qDebug() << "Error: Cannot open file for writing";
+                    ok = false;
                     return;
                 }
             }
             else {
-                qDebug() << "Error: Data is not a JSON file";
+                qDebug() << "Error: Data is not a correct JSON file";
+                ok = false;
                 return;
             }
         }
         else {
             qDebug() << "Error: Data is not a JSON file";
+            ok = false;
             return;
         }
     }
@@ -126,7 +211,12 @@ int main(int argc, char *argv[])
             if (parser.isSet(dirOption))
                 distDir = parser.value(dirOption);
 
-            deserializeFolder(data, distDir);
+            bool ok = true;
+            deserializeFolder(data, distDir, ok);
+            if (!ok) {
+                qDebug() << "Error: Data deserialization failed";
+                return 1;
+            }
 
             qDebug() << "Unpacking completed!";
             return 0;
@@ -142,7 +232,15 @@ int main(int argc, char *argv[])
         if (QFileInfo(srcDir).isDir()) {
             qDebug() << "Packing in progress...";
             QByteArray data;
-            data = serializeFolder(srcDir);
+            
+            bool ok = true;
+            qint64 startSize = 0;
+            data = serializeFolder(srcDir, startSize, ok);
+            if (!ok) {
+                qDebug() << "Error: Data serialization failed";
+                return 1;
+            }
+
             data = qCompress(data, 4);
             
             int number = 1;
