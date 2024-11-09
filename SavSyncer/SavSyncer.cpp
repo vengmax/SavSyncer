@@ -775,7 +775,8 @@ void SavSyncer::syncGame(Game* game) {
                     break;
                 else if (!filesSavSyncer.isEmpty()) {
                     if (jsonGameInfo["name"].toString() != game->name() || jsonGameInfo["path_game"].toString() != game->filePath() ||
-                        jsonGameInfo["path_gamesave"].toString() != game->pathGameSave() || !QFileInfo(".savsyncer").exists())
+                        jsonGameInfo["path_gamesave"].toString() != game->pathGameSave() || 
+                        !QFileInfo(game->pathGameSave() + "/.savsyncer").exists())
                     {
 
                         // show window
