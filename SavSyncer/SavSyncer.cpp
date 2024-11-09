@@ -28,47 +28,32 @@ SavSyncer::SavSyncer(QWidget *parent)
     trayIcon->setIcon(QIcon(":/logo.png"));
     trayIcon->setToolTip("SavSyncer");
     QMenu* menuTrayIcon = new QMenu(this);
-    menuTrayIcon->addAction("Показать", [this]() {
-        show();
-        raise();
-        activateWindow();
-        });
-    menuTrayIcon->addAction("Синхронизировать", [this]() {
-        syncAllGame();
-        });
-    menuTrayIcon->addAction("Выйти", [this]() {
-        forceClose = true;
-        close();
-        });
+    menuTrayIcon->addAction("Показать", [this]() { showWindowLastState(this); });
+    menuTrayIcon->addAction("Синхронизировать", [this]() { syncAllGame(); });
+    menuTrayIcon->addAction("Выйти", [this]() { forceClose = true; close(); });
     trayIcon->setContextMenu(menuTrayIcon);
     connect(trayIcon, &QSystemTrayIcon::activated, this, [this, menuTrayIcon](QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::ActivationReason::Trigger) {
-            show();
-            raise();
-            activateWindow();
-        }
+        if (reason == QSystemTrayIcon::ActivationReason::Trigger)
+            showWindowLastState(this);
         });
     trayIcon->show();
 
     // menu logo
     QMenu* menuLogo = new QMenu(this);
-    actionAuth = menuLogo->addAction("Войти", profile, SLOT(show()));
+    actionAuth = menuLogo->addAction("Войти", this, [this]() { showWindowLastState(profile); });
     menuLogo->addSeparator();
-    menuLogo->addAction("Настройки", settings, SLOT(show()));
+    menuLogo->addAction("Настройки", this, [this]() { showWindowLastState(settings); });
     menuLogo->addSeparator();
-    menuLogo->addAction("Выход", [this]() {
-        forceClose = true;
-        close();
-        });
+    menuLogo->addAction("Выход", [this]() { forceClose = true; close(); });
     connect(ui.btnLogo, &QPushButton::clicked, [this, menuLogo]() {
         menuLogo->exec(ui.btnLogo->mapToGlobal(QPoint(0, ui.btnLogo->height())));
         });
 
     // menu reference
     QMenu* menuReference = new QMenu(this);
-    menuReference->addAction("Служба поддержки", about, SLOT(show()));
+    menuReference->addAction("Служба поддержки", this, [this]() { showWindowLastState(about); });
     menuReference->addSeparator();
-    menuReference->addAction("О SavSyncer", about, SLOT(show()));
+    menuReference->addAction("О SavSyncer", this, [this]() { showWindowLastState(about); });
     connect(ui.btnReference, &QPushButton::clicked, [this, menuReference]() {
         menuReference->exec(ui.btnReference->mapToGlobal(QPoint(0, ui.btnReference->height())));
         });
@@ -88,9 +73,7 @@ SavSyncer::SavSyncer(QWidget *parent)
         });
 
     // btn auth
-    connect(ui.btnAuth, SIGNAL(clicked()), profile, SLOT(show()));
-    connect(ui.btnAuth, SIGNAL(clicked()), profile, SLOT(raise()));
-    connect(ui.btnAuth, SIGNAL(clicked()), profile, SLOT(showNormal()));
+    connect(ui.btnAuth, &QPushButton::clicked, this, [this]() { showWindowLastState(profile); });
 
     // btns searching game from list
     connect(ui.btnSearchGame, SIGNAL(clicked()), ui.lineEditSearchGame, SLOT(setFocus()));
@@ -131,6 +114,14 @@ void SavSyncer::onAboutToQuit() {
         backup();
 }
 
+void SavSyncer::showWindowLastState(QWidget* widget) {
+    if (widget) {
+        widget->setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+        widget->show();
+        widget->raise();
+    }
+}
+
 void SavSyncer::searchGameList(const QString& text) {
     for (auto game : listGame) {
         if (game->name().toUpper().contains(text.toUpper()))
@@ -149,10 +140,7 @@ void SavSyncer::handlerSuccessfulSignIn() {
     if (!backupData.isEmpty() && !QJsonDocument::fromJson(QByteArray::fromBase64(backupData)).isNull()) {
 
         // show window
-        if (isMinimized())
-            showNormal();
-        show();
-        raise();
+        showWindowLastState(this);
 
         QMessageBox::information(nullptr, "Резервное копирование", "Предыдущее сеанс работы программы был завершен некорректно. "
             "Программа вернется до момента последнего успешного действия! Полжалуйста проверте актуальность заданных параметров. ");
@@ -161,10 +149,7 @@ void SavSyncer::handlerSuccessfulSignIn() {
             CRITICAL_MSG("Upload backup service file \".ss\" failed");
 
             // show window
-            if (isMinimized())
-                showNormal();
-            show();
-            raise();
+            showWindowLastState(this);
 
             // message
             QMessageBox msg;
@@ -199,10 +184,7 @@ void SavSyncer::handlerSuccessfulSignIn() {
         CRITICAL_MSG("Failed to read user data correctly");
 
         // show window
-        if (isMinimized())
-            showNormal();
-        show();
-        raise();
+        showWindowLastState(this);
 
         QMessageBox::critical(nullptr, "Ошибка авторизации", "Не удалось корректно прочиать данные о пользователе! Пожалуйста перезайдите в акаунт.");
         handlerSignOut();
@@ -216,10 +198,7 @@ void SavSyncer::handlerSuccessfulSignIn() {
             QApplication::restoreOverrideCursor();
 
             // show window
-            if (isMinimized())
-                showNormal();
-            show();
-            raise();
+            showWindowLastState(this);
 
             // message
             QMessageBox msg;
@@ -250,10 +229,7 @@ void SavSyncer::handlerSuccessfulSignIn() {
                 QApplication::restoreOverrideCursor();
 
                 // show window
-                if (isMinimized())
-                    showNormal();
-                show();
-                raise();
+                showWindowLastState(this);
 
                 // message
                 QMessageBox msg;
@@ -427,7 +403,8 @@ Game* SavSyncer::addNewGame() {
 
     connect(game, &Game::clickedItemMouseRightButton, [this, game, menuItemGameList]() {
         selectGame(game);
-        menuItemGameList->exec(cursor().pos());
+        if(!game->isBusy())
+            menuItemGameList->exec(cursor().pos());
         });
 
     return game;
@@ -470,14 +447,23 @@ void SavSyncer::clickedAddGame() {
     INFO_MSG("New game added");
 }
 
-QByteArray SavSyncer::serializeFolder(const QString& folderPath) {
+QByteArray SavSyncer::serializeFolder(const QString& folderPath, qint64& startSize, bool& ok) {
+    ok = true;
+
     QJsonObject folderObject;
     QDir dir(folderPath);
     foreach(const QString & fileName, dir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
         QString filePath = dir.absoluteFilePath(fileName);
         if (QFileInfo(filePath).isFile()) {
             QJsonObject fileObject;
-            fileObject["size"] = QFileInfo(filePath).size();
+            qint64 sizeFile = QFileInfo(filePath).size();
+            startSize += sizeFile;
+            if (startSize > (long long)settings->getMaxSyncSize() * 1024 * 1024) {
+                ok = false;
+                return QByteArray();
+            }
+
+            fileObject["size"] = sizeFile;
             fileObject["modified"] = QFileInfo(filePath).lastModified().toString("yyyy_MM_dd_hh-mm-ss-zzz");
             QFile file(filePath);
             QByteArray fileData;
@@ -489,7 +475,11 @@ QByteArray SavSyncer::serializeFolder(const QString& folderPath) {
             folderObject["file:" + fileName] = fileObject;
         }
         else {
-            QJsonDocument subfolderObject = QJsonDocument::fromJson(serializeFolder(filePath));
+            QByteArray dataJSON = serializeFolder(filePath, startSize, ok);
+            if (!ok)
+                return QByteArray();
+
+            QJsonDocument subfolderObject = QJsonDocument::fromJson(dataJSON);
             folderObject["folder:" + fileName] = subfolderObject.object();
         }
     }
@@ -634,10 +624,7 @@ void SavSyncer::syncGame(Game* game) {
         WARNING_MSG("User is not authorized");
 
         // show window
-        if (isMinimized())
-            showNormal();
-        show();
-        raise();
+        showWindowLastState(this);
 
         QMessageBox::warning(nullptr, "Предупреждение", "Необходимо войти в учетную запись.");
         return;
@@ -731,10 +718,7 @@ void SavSyncer::syncGame(Game* game) {
                         if (fileUserId != profile->getId()) {
 
                             // show window
-                            if (isMinimized())
-                                showNormal();
-                            show();
-                            raise();
+                            showWindowLastState(this);
 
                             msg.setText("Данные игры " + game->name() + " или часть данных принадлежат другому пользователю. "
                                 "Хотите ли вы полностью заменить их на свои данные или сохранить эти данные к себе на диск?");
@@ -770,10 +754,7 @@ void SavSyncer::syncGame(Game* game) {
                     {
 
                         // show window
-                        if (isMinimized())
-                            showNormal();
-                        show();
-                        raise();
+                        showWindowLastState(this);
 
                         msg.setText("Были изменены данные игры " + game->name() + ". Для продолжения выберите где находятся актуальные данные.");
                         yesButton->setText("На диске");
@@ -794,10 +775,7 @@ void SavSyncer::syncGame(Game* game) {
                 else {
 
                     // show window
-                    if (isMinimized())
-                        showNormal();
-                    show();
-                    raise();
+                    showWindowLastState(this);
 
                     msg.setText("Были изменены данные игры " + game->name() + ". Для продолжения выберите где находятся актуальные данные.");
                     yesButton->setText("На диске");
@@ -873,10 +851,12 @@ void SavSyncer::syncGame(Game* game) {
                 }
 
                 // upload game save
-                auto funcCompress = [this, path, &data, &eveloop, game]() {
+                bool ok = true;
+                qint64 startSize = 0;
+                auto funcCompress = [this, path, &data, &eveloop, game, &startSize, &ok]() {
 
                     INFO_MSG("Start serialize data " + game->name());
-                    data = serializeFolder(path);
+                    data = serializeFolder(path, startSize, ok);
                     INFO_MSG("Finished serialize data " + game->name());
 
                     INFO_MSG("Start compress data " + game->name());
@@ -887,6 +867,16 @@ void SavSyncer::syncGame(Game* game) {
                     };
                 if (QMetaObject::invokeMethod(objectAnotherThread, funcCompress, Qt::QueuedConnection))
                     eveloop.exec();
+
+                if (!ok) {
+                    game->setBusy(false);
+                    game->setSyncMode(SyncMode::SyncFailed);
+                    CRITICAL_MSG(game->name() + ": Serialization of game data failed");
+                    if (!isVisible())
+                        trayIcon->showMessage("Ошибка синхронизации", "Произошла ошибка при синхронизации " + game->name(), QSystemTrayIcon::Warning);
+                    emit syncWaitingGame();
+                    return;
+                }
 
                 profile->uploadGameData(nameGameSave, data);
                 if (profile->error()) {
@@ -1008,10 +998,7 @@ void SavSyncer::syncAllGame() {
         WARNING_MSG("User is not authorized");
 
         // show window
-        if (isMinimized())
-            showNormal();
-        show();
-        raise();
+        showWindowLastState(this);
 
         QMessageBox::warning(nullptr, "Предупреждение", "Необходимо войти в учетную запись.");
         return;
@@ -1364,6 +1351,13 @@ void SavSyncer::closeEvent(QCloseEvent* event) {
     if (settings->getBackgroundWork() && !forceClose) {
         event->ignore();
         hide();
+        if (about)
+            about->hide();
+        if (profile)
+            profile->hide();
+        if (settings)
+            settings->hide();
+        trayIcon->show();
     }
     else {
         QMessageBox msgClose(QMessageBox::Question, "Выход", "Вы действительно хотите выйти?", QMessageBox::Yes | QMessageBox::Cancel);

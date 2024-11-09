@@ -36,6 +36,9 @@ public slots:
 
 private slots:
 
+    // show window in last state
+    void showWindowLastState(QWidget* widget);
+
     // find a game from the list
     void searchGameList(const QString& text);
 
@@ -49,7 +52,7 @@ private slots:
     void clickedAddGame();
 
     // sync and del game
-    QByteArray serializeFolder(const QString& folderPath);
+    QByteArray serializeFolder(const QString& folderPath, qint64& startSize, bool& ok);
     bool setLastModifiedTime(const QString& filePath, const QDateTime& newTime);
     void deserializeFolder(const QByteArray& jsonData, const QString& targetPath, bool &ok);
     QStringList findFiles(const QString& path, const QString& fileName);
@@ -92,9 +95,9 @@ protected:
 private:
     Ui::SavSyncer ui;
     QSettings* regSettings = nullptr;
-    QString version = "0.2.1 (alpha)";
+    QString version = "0.3 (beta)";
     QString buildDate = QDateTime::currentDateTime().toString("dd.MM.yyyy");
-    QString versionAPI = "0.2 (alpha)";
+    QString versionAPI = "0.2 (beta)";
     QString contact = "maksimuchhka@list.ru";
 
     // widgets

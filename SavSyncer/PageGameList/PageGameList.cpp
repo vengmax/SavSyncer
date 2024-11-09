@@ -6,6 +6,11 @@ PageGameList::PageGameList(QSettings* regset, QWidget *parent)
 	ui.setupUi(this);
 	regSettings = regset;
 
+	ui.lineEditPathGame->setReadOnly(true);
+	ui.lineEditPathGameSave->setReadOnly(true);
+	ui.lineEditPathGame->setCursor(Qt::IBeamCursor);
+	ui.lineEditPathGameSave->setCursor(Qt::IBeamCursor);
+
 	connect(ui.checkBoxSync, &QCheckBox::stateChanged, this, [this](int state) {
 		if (state == 0)
 			emit enabledSync(false);
@@ -54,7 +59,6 @@ PageGameList::PageGameList(QSettings* regset, QWidget *parent)
 			emit validPath(true);
 			emit updateGameInfo();
 		}
-		emit updateGameSaveInfo();
 		});
 
 	connect(ui.lineEditPathGameSave, &QLineEdit::textChanged, this, [this](const QString& text) {
@@ -132,9 +136,31 @@ void PageGameList::setSyncEnable(bool value) {
 }
 
 bool PageGameList::isValidPathGame() {
-	return validPathGame;
+	QFileInfo checkInfo = QFileInfo(ui.lineEditPathGame->text());
+	if (!checkInfo.exists() || !checkInfo.isFile()) {
+		if (validPathGame != false)
+			ui.lineEditPathGame->textChanged(ui.lineEditPathGame->text());
+		return false;
+	}
+	else {
+		if (validPathGame != true)
+			ui.lineEditPathGame->textChanged(ui.lineEditPathGame->text());
+		return true;
+	}
+	//return validPathGame;
 }
 
 bool PageGameList::isValidPathGameSave() {
-	return validPathGameSave;
+	QFileInfo checkInfo = QFileInfo(ui.lineEditPathGameSave->text());
+	if (!checkInfo.exists() || !checkInfo.isDir()) {
+		if (validPathGameSave != false)
+			ui.lineEditPathGameSave->textChanged(ui.lineEditPathGameSave->text());
+		return false;
+	}
+	else {
+		if (validPathGameSave != true)
+			ui.lineEditPathGameSave->textChanged(ui.lineEditPathGameSave->text());
+		return true;
+	}
+	//return validPathGameSave;
 }

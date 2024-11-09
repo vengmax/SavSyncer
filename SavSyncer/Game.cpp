@@ -99,9 +99,7 @@ QString Game::name() {
 	return m_item->name();
 }
 QString Game::filePath() {
-	if (m_page->isValidPathGame())
-		return m_page->pathGame();
-	return QString();
+	return m_page->pathGame();
 }
 QIcon Game::icon() {
 	return m_item->icon();
@@ -113,9 +111,7 @@ SyncMode Game::syncMode() {
 	return m_item->syncMode();
 }
 QString Game::pathGameSave() {
-	if(m_page->isValidPathGameSave())
-		return m_page->pathGameSave();
-	return QString();
+	return m_page->pathGameSave();
 }
 long long Game::saveSize() {
 	return m_saveSize;
@@ -148,7 +144,7 @@ bool Game::startMonitoringApp() {
 				}
 			}
 			});
-		timerMonitoring->start(5000);
+		timerMonitoring->start(6000);
 		return true;
 	}
 	else
