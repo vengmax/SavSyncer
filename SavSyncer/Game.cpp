@@ -144,7 +144,7 @@ bool Game::startMonitoringApp() {
 				}
 			}
 			});
-		timerMonitoring->start(6000);
+		timerMonitoring->start(7000);
 		return true;
 	}
 	else
