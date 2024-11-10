@@ -1156,24 +1156,28 @@ void SavSyncer::selectGame(Game* game) {
 }
 
 void SavSyncer::syncNextGame() {
-    listSyncGame.takeFirst();
     if (!listSyncGame.isEmpty()) {
-        Game* game = listSyncGame.first();
-        if (game)
-            emit startSyncGame(game);
-        else
-            emit syncWaitingGame();
+        listSyncGame.takeFirst();
+        if (!listSyncGame.isEmpty()) {
+            Game* game = listSyncGame.first();
+            if (game)
+                emit startSyncGame(game);
+            else
+                emit syncWaitingGame();
+        }
     }
 }
 
 void SavSyncer::deleteNextGame() {
-    listDeleteGame.takeFirst();
     if (!listDeleteGame.isEmpty()) {
-        Game* game = listDeleteGame.first();
-        if (game)
-            deleteGame(game);
-        else
-            emit deleteWaitingGame();
+        listDeleteGame.takeFirst();
+        if (!listDeleteGame.isEmpty()) {
+            Game* game = listDeleteGame.first();
+            if (game)
+                deleteGame(game);
+            else
+                emit deleteWaitingGame();
+        }
     }
 }
 
