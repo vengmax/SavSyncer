@@ -391,6 +391,7 @@ Game* SavSyncer::addNewGame() {
                         QMessageBox msg(QMessageBox::Question, "Удаление", "Все данные связанные с этой игрой на удаленном хранилище будут удалены. "
                             "Вы действительно хотите удалить игру?", QMessageBox::Yes);
                         msg.addButton(QMessageBox::Cancel);
+                        msg.setDefaultButton(QMessageBox::Cancel);
                         msg.button(QMessageBox::Yes)->setText("Да");
                         msg.button(QMessageBox::Cancel)->setText("Отмена");
                         int res = msg.exec();
@@ -729,7 +730,7 @@ void SavSyncer::syncGame(Game* game) {
                 msg.setStandardButtons(QMessageBox::Yes);
                 msg.addButton(QMessageBox::No);
                 msg.addButton(QMessageBox::Cancel);
-                msg.setDefaultButton(QMessageBox::Yes);
+                msg.setDefaultButton(QMessageBox::Cancel);
                 QAbstractButton* yesButton = msg.button(QMessageBox::Yes);
                 QAbstractButton* noButton = msg.button(QMessageBox::No);
                 noButton->setMinimumWidth(120);
@@ -1406,6 +1407,7 @@ void SavSyncer::closeEvent(QCloseEvent* event) {
         cancelBtn->setText("Отмена");
         if (!listSyncGame.isEmpty() || !listDeleteGame.isEmpty()) {
             msgClose.setText("В данный момент идет синхронизация. Вы действительно хотите выйти?");
+            msgClose.setDefaultButton(QMessageBox::Cancel);
             int res = msgClose.exec();
             if (res != QMessageBox::Yes) {
                 event->ignore();
