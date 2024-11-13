@@ -11,10 +11,14 @@ Game::Game(ItemGameList* item, PageGameList* page, QSettings* regset){
 	connect(m_page, SIGNAL(refreshGame()), this, SLOT(refresh()));
 	connect(m_page, SIGNAL(refreshGameInfo()), this, SLOT(refreshInfo()));
 	connect(m_page, &PageGameList::enabledSync, this, [this](bool value) {
-		if(value)
+		if (value) {
 			m_item->setSyncMode(SyncMode::SyncUncompleted);
-		else
+			startMonitoringApp();
+		}
+		else {
 			m_item->setSyncMode(SyncMode::SyncDisabled);
+			stopMonitoringApp();
+		}
 		emit enabledSync(value);
 		});
 	connect(m_page, &PageGameList::validPath, this, [this](bool value) {
@@ -49,6 +53,10 @@ bool Game::isSync() {
 }
 void Game::setSyncEnable(bool value) {
 	m_page->setSyncEnable(value);
+	if (value)
+		startMonitoringApp();
+	else
+		stopMonitoringApp();
 }
 bool Game::isValid() {
 	return (m_page->isValidPathGame() && m_page->isValidPathGameSave() && m_item->isValid());
