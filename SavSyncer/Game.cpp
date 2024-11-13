@@ -18,7 +18,11 @@ Game::Game(ItemGameList* item, PageGameList* page, QSettings* regset){
 		emit enabledSync(value);
 		});
 	connect(m_page, &PageGameList::validPath, this, [this](bool value) {
-		m_item->setSyncMode(SyncMode::SyncUncompleted);
+		if(m_page->isSync())
+			m_item->setSyncMode(SyncMode::SyncUncompleted);
+		else
+			m_item->setSyncMode(SyncMode::SyncDisabled);
+
 		if (value) {
 			if(m_page->isValidPathGame() && m_page->isValidPathGameSave())
 				m_item->setValid(true);
