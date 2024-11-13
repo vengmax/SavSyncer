@@ -16,6 +16,7 @@
 #include <QJsonArray>
 #include <QSystemTrayIcon>
 #include <QDialogButtonBox>
+#include <QBuffer>
 
 #include "About.h"
 #include "Profile.h"

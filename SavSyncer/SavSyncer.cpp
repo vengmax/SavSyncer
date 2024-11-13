@@ -284,6 +284,12 @@ void SavSyncer::handlerSuccessfulSignIn() {
                 if (!info.exists()) {
                     game->setName(jsonGameInfo["name"].toString());
                     game->setVersion("-");
+                    if (jsonGameInfo.contains("icon")) {
+                        QByteArray dataIcon = QByteArray::fromBase64(jsonGameInfo["icon"].toString().toUtf8());
+                        QPixmap pixmap;
+                        pixmap.loadFromData(dataIcon, "PNG");
+                        game->setIcon(QIcon(pixmap));
+                    }
                     game->setSyncMode(SyncMode::SyncFailed);
                 }
                 QVariant variantSync = regSettings->value("Services/" + profile->getId() + "/" + game->name() + "/SyncEnabled");
@@ -906,6 +912,11 @@ void SavSyncer::syncGame(Game* game) {
                 // create .ss
                 QJsonObject jsonObjectGameData;
                 jsonObjectGameData["name"] = game->name();
+                QByteArray dataIcon;
+                QBuffer buffer(&dataIcon);
+                buffer.open(QIODevice::WriteOnly);
+                game->icon().pixmap(256, 256).save(&buffer, "PNG");
+                jsonObjectGameData["icon"] = QString(dataIcon.toBase64());
                 jsonObjectGameData["modified"] = lastLocalGameDataModified.toString("yyyy_MM_dd_hh-mm-ss-zzz");
                 jsonObjectGameData["path_game"] = game->filePath();
                 jsonObjectGameData["path_gamesave"] = game->pathGameSave();
@@ -983,6 +994,11 @@ void SavSyncer::syncGame(Game* game) {
                 // create .ss
                 QJsonObject jsonObjectGameData;
                 jsonObjectGameData["name"] = game->name();
+                QByteArray dataIcon;
+                QBuffer buffer(&dataIcon);
+                buffer.open(QIODevice::WriteOnly);
+                game->icon().pixmap(256, 256).save(&buffer, "PNG");
+                jsonObjectGameData["icon"] = QString(dataIcon.toBase64());
                 jsonObjectGameData["modified"] = lastLocalGameDataModified.toString("yyyy_MM_dd_hh-mm-ss-zzz");
                 jsonObjectGameData["path_game"] = game->filePath();
                 jsonObjectGameData["path_gamesave"] = game->pathGameSave();
