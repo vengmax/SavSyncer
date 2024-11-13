@@ -915,7 +915,7 @@ void SavSyncer::syncGame(Game* game) {
                 QByteArray dataIcon;
                 QBuffer buffer(&dataIcon);
                 buffer.open(QIODevice::WriteOnly);
-                game->icon().pixmap(256, 256).save(&buffer, "PNG");
+                game->icon().pixmap(48, 48).scaled(48, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation).save(&buffer, "PNG");
                 jsonObjectGameData["icon"] = QString(dataIcon.toBase64());
                 jsonObjectGameData["modified"] = lastLocalGameDataModified.toString("yyyy_MM_dd_hh-mm-ss-zzz");
                 jsonObjectGameData["path_game"] = game->filePath();
@@ -997,7 +997,7 @@ void SavSyncer::syncGame(Game* game) {
                 QByteArray dataIcon;
                 QBuffer buffer(&dataIcon);
                 buffer.open(QIODevice::WriteOnly);
-                game->icon().pixmap(256, 256).save(&buffer, "PNG");
+                game->icon().pixmap(48, 48).scaled(48, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation).save(&buffer, "PNG");
                 jsonObjectGameData["icon"] = QString(dataIcon.toBase64());
                 jsonObjectGameData["modified"] = lastLocalGameDataModified.toString("yyyy_MM_dd_hh-mm-ss-zzz");
                 jsonObjectGameData["path_game"] = game->filePath();
